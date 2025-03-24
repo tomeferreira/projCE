@@ -1,0 +1,2 @@
+- Começar por experimentar evoluir logo a matriz de ints (tipo a do robot_structure do random_controler)
+- As runs são deterministicas (desde que a seed seja a mesma)
