@@ -14,7 +14,7 @@ import time
 
 
 # ---- PARAMETERS ----
-NUM_GENERATIONS = 250  # Number of generations to evolve
+NUM_GENERATIONS = 50  # Number of generations to evolve
 MIN_GRID_SIZE = (5, 5)  # Minimum size of the robot grid
 MAX_GRID_SIZE = (5, 5)  # Maximum size of the robot grid
 STEPS = 500
@@ -26,6 +26,9 @@ CONTROLLER = alternating_gait
 
 def evaluate_fitness(robot_structure, view=False):    
     try:
+        if not is_connected(robot_structure):
+            return -10.0
+
         connectivity = get_full_connectivity(robot_structure)
   
         env = gym.make(SCENARIO, max_episode_steps=STEPS, body=robot_structure, connections=connectivity)
@@ -65,8 +68,6 @@ def hill_climber(iterations=1000):
 
     results = np.zeros((NUM_GENERATIONS,2))
 
-    print(results.shape)
-
     robot = create_random_robot()
     best_robot = robot
     best_fitness = evaluate_fitness(best_robot)
@@ -97,7 +98,7 @@ def hill_climber(iterations=1000):
 
     return best_robot, best_fitness, results
 
-def main():
+def run_hill_climber():
     
     # Example usage
     best_robot, best_fitness, results = hill_climber()
@@ -119,6 +120,107 @@ def main():
         i += 1
     utils.create_gif(best_robot, filename=path+'\hill_climber.gif', scenario=SCENARIO, steps=STEPS, controller=CONTROLLER)
 
+    return
+
+def evolotionary_algorithm(population_size=20, mutation_rate=0.05):
+
+    def mutate(robot, mutation_rate):
+        # TODO YOUR CODE HERE
+        for i in range(robot.shape[0]):
+            for j in range(robot.shape[1]):
+                if random.random()<=mutation_rate:
+                    robot[i][j]=random.choice(VOXEL_TYPES)
+        return robot
+    
+    def crossover(parent1, parent2):
+        # Flatten parents to 1D arrays
+        parent1_flat = parent1.flatten()
+        parent2_flat = parent2.flatten()
+
+        crossover_points = sorted(np.random.choice(25, 3, replace=False))
+
+        # Perform three-point crossover
+        child_flat = np.concatenate([
+            np.copy(parent1_flat[:crossover_points[0]]),
+            np.copy(parent2_flat[crossover_points[0]:crossover_points[1]]),
+            np.copy(parent1_flat[crossover_points[1]:crossover_points[2]]),
+            np.copy(parent2_flat[crossover_points[2]:])
+        ])
+
+        # Reshape back to (5,5)
+        child = child_flat.reshape((5,5))
+
+        return child
+
+    def tournament_selection(population, k=5):
+        # TODO YOUR CODE HERE
+        # Note: use sorted(<...>, key=fitness) to sort by value of the fitness function call
+        indices = np.random.choice(len(population),k,replace=False)
+        ind = sorted(indices)[:2]
+        return population[ind[0]],population[ind[1]]
+
+    results = np.zeros((NUM_GENERATIONS,2))
+
+    population = [create_random_robot() for _ in range(population_size)]
+
+    for it in range(NUM_GENERATIONS):
+        
+        population = sorted(population, key=evaluate_fitness, reverse=True)
+
+        print(evaluate_fitness(population[0]))
+        print(evaluate_fitness(population[1]))
+
+        new_population = [population[0],population[1]]
+        while len(new_population) < population_size:
+            p1, p2 = tournament_selection(population,10)
+            child = crossover(p1, p2)
+            child = mutate(child, mutation_rate)
+            new_population.append(child)
+        population = new_population
+
+        
+        print(f"Iteration {it + 1}: Best Fitness = {evaluate_fitness(population[0])}")
+
+        results[it] = [it+1,evaluate_fitness(population[0])]
+    
+    best_robot = population[0]
+    best_fitness = evaluate_fitness(population[0])
+
+    results = pd.DataFrame(results,columns=['Iteration','Fitness'])
+    results['Iteration'] = results['Iteration'].astype('int32')
+
+    return best_robot, best_fitness, results
+
+def run_evolotionary_algorithm():
+
+    # Example usage
+    best_robot, best_fitness, results = evolotionary_algorithm()
+    
+    time_str = str(time.strftime("%Y-%m-%d_%Hh%Mm%Ss"))+"_S"+str(STEPS)+"_G"+str(NUM_GENERATIONS)
+    path = os.path.join("students","results","evolotionary_algorithm",time_str)
+
+    os.makedirs(path)
+
+    results.to_csv(path+'\\fitness_history.csv',index=False)
+
+    print("Best robot structure found:")
+    print(best_robot)
+    print("Best fitness score:")
+    print(best_fitness)
+    i = 0
+    while i < 10:
+        utils.simulate_best_robot(best_robot, scenario=SCENARIO, steps=STEPS)
+        i += 1
+    utils.create_gif(best_robot, filename=path+'\evolotionary_algorithm.gif', scenario=SCENARIO, steps=STEPS, controller=CONTROLLER)
+
+    return
+
+def main():
+    start_time = time.time()
+    # run_hill_climber()
+    run_evolotionary_algorithm()
+    end_time = time.time()
+    print("Elapsed time: " + str(end_time-start_time))
     return
 
 if __name__ == '__main__':
