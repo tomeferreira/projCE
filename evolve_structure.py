@@ -6,6 +6,7 @@ from evogym.envs import *
 import pandas as pd
 import numpy as np
 
+from concurrent.futures import ProcessPoolExecutor
 from evogym import EvoWorld, EvoSim, EvoViewer, sample_robot, get_full_connectivity, is_connected
 import utils
 from fixed_controllers import *
@@ -14,6 +15,7 @@ import time
 
 
 # ---- PARAMETERS ----
+NUM_CORES = 4
 NUM_GENERATIONS = 50  # Number of generations to evolve
 MIN_GRID_SIZE = (5, 5)  # Minimum size of the robot grid
 MAX_GRID_SIZE = (5, 5)  # Maximum size of the robot grid
@@ -76,7 +78,7 @@ def hill_climber(iterations=1000):
 
     for it in range(NUM_GENERATIONS):
         
-        
+
         robot = np.copy(best_robot)
         robot[random.randint(0,robot.shape[0]-1),random.randint(0,robot.shape[1]-1)] = random.choice(VOXEL_TYPES)
         while not is_connected(robot):
@@ -159,29 +161,40 @@ def evolotionary_algorithm(population_size=20, mutation_rate=0.05):
         ind = sorted(indices)[:2]
         return population[ind[0]],population[ind[1]]
 
-    results = np.zeros((NUM_GENERATIONS,2))
+    results = np.zeros((NUM_GENERATIONS,3))
 
     population = [create_random_robot() for _ in range(population_size)]
-    population = sorted(population, key=evaluate_fitness, reverse=True)
-    for it in range(NUM_GENERATIONS):
-        print(evaluate_fitness(population[0]))
-        print(evaluate_fitness(population[1]))
 
-        new_population = [population[0],population[1]]
+    with ProcessPoolExecutor(max_workers=NUM_CORES) as executor:
+        fitness_scores = np.array(list(executor.map(evaluate_fitness, population)))
+
+    sorted_indices = np.argsort(-fitness_scores)
+    population = [population[i] for i in sorted_indices]
+
+    for it in range(NUM_GENERATIONS):
+
+        new_population = list(np.copy(population[0:2]))
         while len(new_population) < population_size:
             p1, p2 = tournament_selection(population,10)
             child = crossover(p1, p2)
             child = mutate(child, mutation_rate)
             new_population.append(child)
         
-        population = sorted(new_population, key=evaluate_fitness, reverse=True)
-        print(f"Iteration {it + 1}: Best Fitness = {evaluate_fitness(population[0])}")
-        results[it] = [it+1,evaluate_fitness(population[0])]
+        with ProcessPoolExecutor(max_workers=NUM_CORES) as executor:
+            fitness_scores = np.array(list(executor.map(evaluate_fitness, new_population)))
+        sorted_indices = np.argsort(-fitness_scores)
+        fitness_scores = [fitness_scores[i] for i in sorted_indices]
+        population = [new_population[i] for i in sorted_indices]
+
+        print(fitness_scores)
+        print(f"Iteration {it + 1}: Best Fitness = {fitness_scores[0]} Average Fitness = {np.mean(fitness_scores)}")
+
+        results[it] = [it+1,fitness_scores[0],np.mean(fitness_scores)]
     
     best_robot = population[0]
-    best_fitness = evaluate_fitness(population[0])
+    best_fitness = fitness_scores[0]
 
-    results = pd.DataFrame(results,columns=['Iteration','Fitness'])
+    results = pd.DataFrame(results,columns=['Iteration','Fitness','Mean Fitness'])
     results['Iteration'] = results['Iteration'].astype('int32')
 
     return best_robot, best_fitness, results
