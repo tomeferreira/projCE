@@ -162,11 +162,8 @@ def evolotionary_algorithm(population_size=20, mutation_rate=0.05):
     results = np.zeros((NUM_GENERATIONS,2))
 
     population = [create_random_robot() for _ in range(population_size)]
-
+    population = sorted(population, key=evaluate_fitness, reverse=True)
     for it in range(NUM_GENERATIONS):
-        
-        population = sorted(population, key=evaluate_fitness, reverse=True)
-
         print(evaluate_fitness(population[0]))
         print(evaluate_fitness(population[1]))
 
@@ -176,11 +173,9 @@ def evolotionary_algorithm(population_size=20, mutation_rate=0.05):
             child = crossover(p1, p2)
             child = mutate(child, mutation_rate)
             new_population.append(child)
-        population = new_population
-
         
+        population = sorted(new_population, key=evaluate_fitness, reverse=True)
         print(f"Iteration {it + 1}: Best Fitness = {evaluate_fitness(population[0])}")
-
         results[it] = [it+1,evaluate_fitness(population[0])]
     
     best_robot = population[0]
