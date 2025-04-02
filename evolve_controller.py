@@ -1,14 +1,15 @@
 import numpy as np
 import random
 import copy
+from utils import create_gif
 import gymnasium as gym
 import pandas as pd
 from evogym.envs import *
 from evogym import EvoViewer, get_full_connectivity
 from neural_controller import *
 
-
-NUM_GENERATIONS = 100  # Number of generations to evolve
+# ---- PARAMETERS ----
+NUM_GENERATIONS = 3
 STEPS = 500
 SCENARIO = 'DownStepper-v0'
 SEED = 42
@@ -85,7 +86,7 @@ def visualize_policy(weights):
     env.close()
 
 
-def evolutionary_algorithm(
+def genetic_algorithm(
     population_size=20,
     mutation_strenght=0.02,
     mutation_rate=0.05,
@@ -124,34 +125,43 @@ def evolutionary_algorithm(
         sorted_idx = sorted(chosen_idx)[:2]
         return population[sorted_idx[0]], population[sorted_idx[1]]
 
-    results = np.zeros((NUM_GENERATIONS, 2))
-    population = [create_random_weights() for _ in range(population_size)]
-    population = sorted(population, key=evaluate_fitness, reverse=True)
+    results = np.zeros((NUM_GENERATIONS, 3))
+
+    pop = [create_random_weights() for _ in range(population_size)]
+
+    # Evaluate the initial population
+    fitness_scores = np.array([evaluate_fitness(ind) for ind in pop])
+    sorted_idx = np.argsort(-fitness_scores)
+    pop = [pop[i] for i in sorted_idx]
+
     for generation in range(NUM_GENERATIONS):
         # Elitism: Retain the top N individuals
-        new_population = copy.deepcopy(population[0:elite_size])
+        new_pop = copy.deepcopy(pop[0:elite_size])
         # Generate the new population
-        while len(new_population) < population_size:
-            p1, p2 = tournament_selection(population, tournament_size)
+        while len(new_pop) < population_size:
+            p1, p2 = tournament_selection(pop, tournament_size)
             child = k_points_crossover(p1, p2, k_points)
             child = mutate(child, mutation_rate, mutation_strenght)
-            new_population.append(child)
+            new_pop.append(child)
 
         # Evaluate the population
-        population = sorted(new_population, key=evaluate_fitness, reverse=True)
-        best_fitness = evaluate_fitness(population[0])
+        fitness_scores = np.array([evaluate_fitness(ind) for ind in new_pop])
+        sorted_idx = np.argsort(-fitness_scores)
+        fitness_scores = [fitness_scores[i] for i in sorted_idx]
+        pop = [new_pop[i] for i in sorted_idx]
+        mean_fitness = np.mean(fitness_scores)
         print(
-            f'Generation {generation + 1}/{NUM_GENERATIONS}, Best Fitness: {best_fitness}'
+            f'Generation {generation + 1}/{NUM_GENERATIONS}: Best Fitness: {fitness_scores[0]}, Average Fitness: {mean_fitness}'
         )
-        results[generation] = [generation + 1, best_fitness]
+        results[generation] = [generation + 1, fitness_scores[0], mean_fitness]
 
-    best_weights = population[0]
-    best_fitness = evaluate_fitness(population[0])
+    best_weights = pop[0]
+    best_fitness = fitness_scores[0]
 
     return best_weights, best_fitness, results
 
 
-def run_evolutionary_algorithm():
+def run_genetic_algorithm():
     # Parameters
     population_size = 20
     mutation_strenght = 0.02
@@ -161,7 +171,7 @@ def run_evolutionary_algorithm():
     elite_size = 2
 
     # Example usage
-    best_weights, best_fitness, results = evolutionary_algorithm(
+    best_weights, best_fitness, results = genetic_algorithm(
         population_size,
         mutation_strenght,
         mutation_rate,
@@ -171,43 +181,52 @@ def run_evolutionary_algorithm():
     )
 
     time_str = f'{time.strftime("%Y-%m-%d_%Hh%Mm%Ss")}_S{STEPS}_G{NUM_GENERATIONS}'
-    path = os.path.join('results', 'controller', 'ea', time_str)
+    path = os.path.join('results', 'controller', 'ga', time_str)
     os.makedirs(path)
 
     # Save results to a text file
-    with open('results.txt', 'w') as file:
-        file.write(f'Population_Size: {population_size}\n')
-        file.write(f'Mutation_Strength: {mutation_strenght}\n')
-        file.write(f'Mutation_Rate: {mutation_rate}\n')
-        file.write(f'K_Points: {k_points}\n')
-        file.write(f'Tournament_Size: {tournament_size}\n')
-        file.write(f'Elite_Size: {elite_size}\n\n')
+    with open(f'{path}\\results.txt', 'w') as f:
+        f.write(f'Generation: {NUM_GENERATIONS}\n')
+        f.write(f'Steps: {STEPS}\n')
+        f.write(f'Scenario: {SCENARIO}\n')
+        f.write(f'Seed: {SEED}\n')
+        f.write(f'Population_Size: {population_size}\n')
+        f.write(f'Mutation_Strength: {mutation_strenght}\n')
+        f.write(f'Mutation_Rate: {mutation_rate}\n')
+        f.write(f'K_Points: {k_points}\n')
+        f.write(f'Tournament_Size: {tournament_size}\n')
+        f.write(f'Elite_Size: {elite_size}\n\n')
 
-        file.write("Iteration | Fitness\n")
-        for it, fitness in results:
-            file.write(f"{int(it):<9} | {fitness}\n")
+        f.write('Generation | Best Fitness | Avg Fitness\n')
+        for it, best_fitness, avg_fitness in results:
+            f.write(
+                f'{int(it):<10} | {best_fitness:<12.6f} | {avg_fitness:.6f}\n'
+            )
+
+    # Save the best weights vector to a file
+    np.save(f'{path}\\best_weights.npy', best_weights)
 
     print(f'Best weights vector found: {best_weights}')
     print(f'Best fitness score: {best_fitness}')
 
-    for _ in range(10):
-        visualize_policy(best_weights)
-
     set_weights(brain, best_weights)  # Load weights into the network
-    utils.create_gif(
+    create_gif(
         robot_structure,
-        filename=f'{path}\ea.gif',
+        filename=f'{path}\\ea.gif',
         scenario=SCENARIO,
         steps=STEPS,
         controller=brain,
     )
+
+    for _ in range(10):
+        visualize_policy(best_weights)
 
     return
 
 
 def main():
     start_time = time.time()
-    run_evolutionary_algorithm()
+    run_genetic_algorithm()
     end_time = time.time()
     print("Elapsed time: " + str(end_time-start_time))
     return
