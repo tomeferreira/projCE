@@ -124,7 +124,7 @@ def run_hill_climber():
 
     return
 
-def evolotionary_algorithm(population_size=20, mutation_rate=0.05):
+def genetic_algorithm(population_size=20, mutation_rate=0.05):
 
     def mutate(robot, mutation_rate):
         # TODO YOUR CODE HERE
@@ -199,13 +199,13 @@ def evolotionary_algorithm(population_size=20, mutation_rate=0.05):
 
     return best_robot, best_fitness, results
 
-def run_evolotionary_algorithm():
+def run_genetic_algorithm():
 
     # Example usage
-    best_robot, best_fitness, results = evolotionary_algorithm()
+    best_robot, best_fitness, results = genetic_algorithm()
     
     time_str = str(time.strftime("%Y-%m-%d_%Hh%Mm%Ss"))+"_S"+str(STEPS)+"_G"+str(NUM_GENERATIONS)
-    path = os.path.join("students","results","evolotionary_algorithm",time_str)
+    path = os.path.join("students","results","ga",time_str)
 
     os.makedirs(path)
 
@@ -219,14 +219,14 @@ def run_evolotionary_algorithm():
     while i < 10:
         utils.simulate_best_robot(best_robot, scenario=SCENARIO, steps=STEPS)
         i += 1
-    utils.create_gif(best_robot, filename=path+'\evolotionary_algorithm.gif', scenario=SCENARIO, steps=STEPS, controller=CONTROLLER)
+    utils.create_gif(best_robot, filename=path+'\genetic_algorithm.gif', scenario=SCENARIO, steps=STEPS, controller=CONTROLLER)
 
     return
 
 def main():
     start_time = time.time()
     # run_hill_climber()
-    run_evolotionary_algorithm()
+    run_genetic_algorithm()
     end_time = time.time()
     print("Elapsed time: " + str(end_time-start_time))
     return
