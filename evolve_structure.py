@@ -14,9 +14,21 @@ import os
 import time
 
 
+SEEDS=[68167,91803,39233,58400,97664]
+
+def set_seed(seed):
+    random.seed(seed)
+    np.random.seed(seed)
+    print("Seed set")
+    return
+
 # ---- PARAMETERS ----
-NUM_CORES = 4
-NUM_GENERATIONS = 50  # Number of generations to evolve
+NUM_CORES = 6
+NUM_GENERATIONS = 100  # Number of generations to evolve
+ELITISM_SIZE = 2
+TOURNAMENT_SIZE = 5
+POP_SIZE = 50
+MUTATION_RATE = 0.1
 MIN_GRID_SIZE = (5, 5)  # Minimum size of the robot grid
 MAX_GRID_SIZE = (5, 5)  # Maximum size of the robot grid
 STEPS = 500
@@ -28,9 +40,6 @@ CONTROLLER = alternating_gait
 
 def evaluate_fitness(robot_structure, view=False):    
     try:
-        if not is_connected(robot_structure):
-            return -10.0
-
         connectivity = get_full_connectivity(robot_structure)
   
         env = gym.make(SCENARIO, max_episode_steps=STEPS, body=robot_structure, connections=connectivity)
@@ -78,11 +87,10 @@ def hill_climber(iterations=1000):
 
     for it in range(NUM_GENERATIONS):
         
-
-        robot = np.copy(best_robot)
+        robot = copy.deepcopy(best_robot)
         robot[random.randint(0,robot.shape[0]-1),random.randint(0,robot.shape[1]-1)] = random.choice(VOXEL_TYPES)
         while not is_connected(robot):
-            robot = np.copy(best_robot)
+            robot = copy.deepcopy(best_robot)
             robot[random.randint(0,robot.shape[0]-1),random.randint(0,robot.shape[1]-1)] = random.choice(VOXEL_TYPES)
         print(robot)
         fitness_score = evaluate_fitness(robot)
@@ -124,30 +132,61 @@ def run_hill_climber():
 
     return
 
-def genetic_algorithm(population_size=20, mutation_rate=0.05):
+def genetic_algorithm():
 
     def mutate(robot, mutation_rate):
-        # TODO YOUR CODE HERE
-        for i in range(robot.shape[0]):
-            for j in range(robot.shape[1]):
+        mut_robot = copy.deepcopy(robot)
+        for i in range(mut_robot.shape[0]):
+            for j in range(mut_robot.shape[1]):
                 if random.random()<=mutation_rate:
-                    robot[i][j]=random.choice(VOXEL_TYPES)
-        return robot
+                    choice = random.choice(VOXEL_TYPES)
+                    while mut_robot[i][j] == choice:
+                        choice = random.choice(VOXEL_TYPES)
+                    mut_robot[i][j]= choice
+        while not is_connected(mut_robot):
+            #print("Wasn't Connected Mutation")
+            mut_robot = copy.deepcopy(robot)
+            for i in range(mut_robot.shape[0]):
+                for j in range(mut_robot.shape[1]):
+                    if random.random()<=mutation_rate:
+                        choice = random.choice(VOXEL_TYPES)
+                        while mut_robot[i][j] == choice:
+                            choice = random.choice(VOXEL_TYPES)
+                        mut_robot[i][j]= choice
+        return mut_robot
     
-    def crossover(parent1, parent2):
+    def crossover_3points(parent1, parent2):
         # Flatten parents to 1D arrays
-        parent1_flat = parent1.flatten()
-        parent2_flat = parent2.flatten()
+        parent1_flat = copy.deepcopy(parent1).flatten()
+        parent2_flat = copy.deepcopy(parent2).flatten()
 
         crossover_points = sorted(np.random.choice(25, 3, replace=False))
 
         # Perform three-point crossover
         child_flat = np.concatenate([
-            np.copy(parent1_flat[:crossover_points[0]]),
-            np.copy(parent2_flat[crossover_points[0]:crossover_points[1]]),
-            np.copy(parent1_flat[crossover_points[1]:crossover_points[2]]),
-            np.copy(parent2_flat[crossover_points[2]:])
+            copy.deepcopy(parent1_flat[:crossover_points[0]]),
+            copy.deepcopy(parent2_flat[crossover_points[0]:crossover_points[1]]),
+            copy.deepcopy(parent1_flat[crossover_points[1]:crossover_points[2]]),
+            copy.deepcopy(parent2_flat[crossover_points[2]:])
         ])
+
+        i = 1
+        while not is_connected(child_flat.reshape((5,5))):
+            #print("Wasn't Connected Crossover")
+            if i>5:
+                child_flat = create_random_robot()
+                break
+            crossover_points = sorted(np.random.choice(25, 3, replace=False))
+            child_flat = np.concatenate([
+                copy.deepcopy(parent1_flat[:crossover_points[0]]),
+                copy.deepcopy(parent2_flat[crossover_points[0]:crossover_points[1]]),
+                copy.deepcopy(parent1_flat[crossover_points[1]:crossover_points[2]]),
+                copy.deepcopy(parent2_flat[crossover_points[2]:])
+            ])
+            i+=1
+
+        # if((child_flat==parent1_flat).all() or (child_flat==parent2_flat).all()):
+        #     print("Child is a copy")
 
         # Reshape back to (5,5)
         child = child_flat.reshape((5,5))
@@ -163,7 +202,7 @@ def genetic_algorithm(population_size=20, mutation_rate=0.05):
 
     results = np.zeros((NUM_GENERATIONS,3))
 
-    population = [create_random_robot() for _ in range(population_size)]
+    population = [create_random_robot() for _ in range(POP_SIZE)]
 
     with ProcessPoolExecutor(max_workers=NUM_CORES) as executor:
         fitness_scores = np.array(list(executor.map(evaluate_fitness, population)))
@@ -173,11 +212,11 @@ def genetic_algorithm(population_size=20, mutation_rate=0.05):
 
     for it in range(NUM_GENERATIONS):
 
-        new_population = list(np.copy(population[0:2]))
-        while len(new_population) < population_size:
-            p1, p2 = tournament_selection(population,10)
-            child = crossover(p1, p2)
-            child = mutate(child, mutation_rate)
+        new_population = list(copy.deepcopy(population[0:ELITISM_SIZE]))
+        while len(new_population) < POP_SIZE:
+            p1, p2 = tournament_selection(population,TOURNAMENT_SIZE)
+            child = crossover_3points(p1, p2)
+            child = mutate(child, MUTATION_RATE)
             new_population.append(child)
         
         with ProcessPoolExecutor(max_workers=NUM_CORES) as executor:
@@ -204,7 +243,7 @@ def run_genetic_algorithm():
     # Example usage
     best_robot, best_fitness, results = genetic_algorithm()
     
-    time_str = str(time.strftime("%Y-%m-%d_%Hh%Mm%Ss"))+"_S"+str(STEPS)+"_G"+str(NUM_GENERATIONS)
+    time_str = str(time.strftime("%Y-%m-%d_%Hh%Mm%Ss"))+"_G"+str(NUM_GENERATIONS)+"_P"+str(POP_SIZE)+"_M"+str(MUTATION_RATE)+"_T"+str(TOURNAMENT_SIZE)+"_E"+str(ELITISM_SIZE)
     path = os.path.join("students","results","ga",time_str)
 
     os.makedirs(path)
@@ -224,11 +263,13 @@ def run_genetic_algorithm():
     return
 
 def main():
-    start_time = time.time()
-    # run_hill_climber()
-    run_genetic_algorithm()
-    end_time = time.time()
-    print("Elapsed time: " + str(end_time-start_time))
+    for seed in SEEDS:
+        set_seed(seed)
+        start_time = time.time()
+        # run_hill_climber()
+        run_genetic_algorithm()
+        end_time = time.time()
+        print("Elapsed time: " + str(end_time-start_time))
     return
 
 if __name__ == '__main__':
