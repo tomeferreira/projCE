@@ -5,7 +5,7 @@ import gymnasium as gym
 from evogym.envs import *
 import pandas as pd
 import numpy as np
-
+import json
 from concurrent.futures import ProcessPoolExecutor
 from evogym import EvoWorld, EvoSim, EvoViewer, sample_robot, get_full_connectivity, is_connected
 import utils
@@ -238,12 +238,23 @@ def genetic_algorithm():
 
     return best_robot, best_fitness, results
 
-def run_genetic_algorithm():
+def run_genetic_algorithm(seed):
+
+    json_file = dict()
+
+    start_time = time.time()
 
     # Example usage
     best_robot, best_fitness, results = genetic_algorithm()
     
-    time_str = str(time.strftime("%Y-%m-%d_%Hh%Mm%Ss"))+"_G"+str(NUM_GENERATIONS)+"_P"+str(POP_SIZE)+"_M"+str(MUTATION_RATE)+"_T"+str(TOURNAMENT_SIZE)+"_E"+str(ELITISM_SIZE)
+    end_time = time.time()
+    elapsed_time = end_time-start_time
+
+    json_file['elapsed_time']=elapsed_time
+
+    print("Elapsed time: " + str(elapsed_time))
+
+    time_str = str(time.strftime("%Y-%m-%d_%Hh%Mm%Ss"))+"_S"+str(seed)+"_G"+str(NUM_GENERATIONS)+"_P"+str(POP_SIZE)+"_M"+str(MUTATION_RATE)+"_T"+str(TOURNAMENT_SIZE)+"_E"+str(ELITISM_SIZE)
     path = os.path.join("students","results","ga",time_str)
 
     os.makedirs(path)
@@ -251,9 +262,17 @@ def run_genetic_algorithm():
     results.to_csv(path+'\\fitness_history.csv',index=False)
 
     print("Best robot structure found:")
+    json_file['best_robot']=best_robot.tolist()
     print(best_robot)
     print("Best fitness score:")
+    json_file['best fitness']=best_fitness
     print(best_fitness)
+
+    json_file['total_eval']=NUM_GENERATIONS*POP_SIZE
+
+    with open(path+'\\data.json', 'w', encoding='utf-8') as f:
+        json.dump(json_file, f, ensure_ascii=False, indent=4)
+
     i = 0
     while i < 10:
         utils.simulate_best_robot(best_robot, scenario=SCENARIO, steps=STEPS)
@@ -265,11 +284,8 @@ def run_genetic_algorithm():
 def main():
     for seed in SEEDS:
         set_seed(seed)
-        start_time = time.time()
         # run_hill_climber()
-        run_genetic_algorithm()
-        end_time = time.time()
-        print("Elapsed time: " + str(end_time-start_time))
+        run_genetic_algorithm(seed)
     return
 
 if __name__ == '__main__':
