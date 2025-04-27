@@ -10,7 +10,7 @@ from evogym import EvoViewer, get_full_connectivity
 from neural_controller import *
 
 # ---- PARAMETERS ----
-NUM_GENERATIONS = 1
+NUM_GENERATIONS = 20
 STEPS = 500
 SCENARIO = 'DownStepper-v0'
 SEED = 42
@@ -109,6 +109,30 @@ def unflatten_weights(weights, original_shape):
         unflattened_weights.append(np.array(weights[start:start + size]).reshape(shape))
         start += size
     return unflattened_weights
+
+
+def random_search(pop_sz=20):
+    results = np.zeros((NUM_GENERATIONS, 3))
+
+    for gen in range(NUM_GENERATIONS):
+        # Generate random population
+        pop = [create_random_weights() for _ in range(pop_sz)]
+
+        # Evaluate fitness for the population
+        fitness_scores = np.array([evaluate_fitness(ind) for ind in pop])
+        best_idx = np.argmax(fitness_scores)
+        best_fitness = fitness_scores[best_idx]
+        mean_fitness = np.mean(fitness_scores)
+
+        # Logging
+        print(
+            f'Generation {gen + 1}/{NUM_GENERATIONS}: Best Fitness: {best_fitness:.4f}, Average Fitness: {mean_fitness:.4f}'
+        )
+        results[gen] = [gen + 1, best_fitness, mean_fitness]
+
+    best_weights = pop[best_idx]
+
+    return best_weights, best_fitness, results
 
 
 def genetic_algorithm(
@@ -235,7 +259,7 @@ def cma_es(pop_sz=20, nr_best=5):
 
 
 def differential_evolution(
-    pop_size=200,
+    pop_sz=200,
     base_vector_type='random',
     nr_diff_vectors=1,
     scale_factor='random',
@@ -248,7 +272,7 @@ def differential_evolution(
         The base (or target, as called in the slides) vector is the first one from the chosen ones.
         """
         nr_idx = nr_diff_vectors*2 + 1
-        return np.random.choice(pop_size, nr_idx, replace=False)
+        return np.random.choice(pop_sz, nr_idx, replace=False)
 
     def best_base_vector():
         """
@@ -260,7 +284,7 @@ def differential_evolution(
         nr_idx = nr_diff_vectors * 2
 
         # Create a list of all indices except the best index
-        available_idxs = [i for i in range(pop_size) if i != best_idx]
+        available_idxs = [i for i in range(pop_sz) if i != best_idx]
 
         # Randomly select indices from the available indices
         random_idxs = np.random.choice(available_idxs, nr_idx, replace=False).tolist()
@@ -317,7 +341,7 @@ def differential_evolution(
     else:
         raise ValueError("Invalid base vector type. Use 'random' or 'best'.")
 
-    if nr_diff_vectors >= (pop_size - 1) / 2:
+    if nr_diff_vectors >= (pop_sz - 1) / 2:
         raise ValueError("Number of difference vectors must be less than half the population size.")
 
     if scale_factor == 'random':
@@ -330,11 +354,11 @@ def differential_evolution(
     results = np.zeros((NUM_GENERATIONS, 3))
 
     # 1. Generate a random population within bounds
-    pop = [create_random_weights() for _ in range(pop_size)]
+    pop = [create_random_weights() for _ in range(pop_sz)]
     original_shape = [w.shape for w in pop[0]]
 
     # Evaluate the initial population
-    fitnesses = np.zeros(pop_size)
+    fitnesses = np.zeros(pop_sz)
     for i, individual in enumerate(pop):
         r = evaluate_fitness(individual)
         fitnesses[i] = r
@@ -343,7 +367,7 @@ def differential_evolution(
         new_pop = copy.deepcopy(pop)
         new_fitnesses = copy.deepcopy(fitnesses)
 
-        for _ in range(pop_size):
+        for _ in range(pop_sz):
             scale = calculate_scale(gen)
             # Choose the base vector, and vectors used to calculate the differential vectors
             # The base (or target, as called in the slides) vector is the first one from the chosen ones
@@ -380,6 +404,56 @@ def differential_evolution(
         results[gen] = [gen + 1, fitnesses[best_fit_idx], mean_fitness]
 
     return pop[best_fit_idx], fitnesses[best_fit_idx], results
+
+
+def run_random_search():
+    # Parameters
+    population_size = 20
+
+    print('Starting Random Search...')
+    start_time = time.time()
+
+    # Example usage
+    best_weights, best_fitness, results = random_search(population_size)
+
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+    print(f"Elapsed time: {elapsed_time} seconds")
+
+    time_str = f'{time.strftime("%Y-%m-%d_%Hh%Mm%Ss")}_S{STEPS}_G{NUM_GENERATIONS}'
+    path = os.path.join('results', 'controller', 'random', time_str)
+    os.makedirs(path)
+
+    # Save results to a text file
+    with open(f'{path}\\results.txt', 'w') as f:
+        f.write(f'Generations: {NUM_GENERATIONS}\n')
+        f.write(f'Steps: {STEPS}\n')
+        f.write(f'Scenario: {SCENARIO}\n')
+        f.write(f'Seed: {SEED}\n')
+        f.write(f'Population_Size: {population_size}\n\n')
+        f.write(f'Elapsed_Time: {elapsed_time} seconds\n\n')
+
+        f.write('Generation | Best Fitness | Avg Fitness\n')
+        for it, best_fitness, avg_fitness in results:
+            f.write(
+                f'{int(it):<10} | {best_fitness:<12.6f} | {avg_fitness:.6f}\n'
+            )
+
+    # Save the best weights vector to a file
+    np.save(f'{path}\\best_weights.npy', best_weights)
+
+    set_weights(brain, best_weights)  # Load weights into the network
+    create_gif_brain(
+        robot_structure,
+        brain,
+        filename=f'{path}\\best_robot.gif',
+        scenario=SCENARIO,
+        steps=STEPS,
+    )
+
+    # visualize_policy(best_weights)
+
+    return
 
 
 def run_genetic_algorithm():
@@ -569,12 +643,10 @@ def run_differential_evolution():
 
 
 def main():
+    run_random_search()
     # run_genetic_algorithm()
     # run_cma_es()
-    start_time = time.time()
-    run_differential_evolution()
-    end_time = time.time()
-    print("Elapsed time: " + str(end_time-start_time))
+    # run_differential_evolution()
     return
 
 
