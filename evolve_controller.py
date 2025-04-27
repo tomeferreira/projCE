@@ -2,7 +2,7 @@ import numpy as np
 import random
 import copy
 from scipy.stats import multivariate_normal
-from utils import create_gif
+from utils import create_gif_brain
 import gymnasium as gym
 import pandas as pd
 from evogym.envs import *
@@ -10,7 +10,7 @@ from evogym import EvoViewer, get_full_connectivity
 from neural_controller import *
 
 # ---- PARAMETERS ----
-NUM_GENERATIONS = 200
+NUM_GENERATIONS = 1
 STEPS = 500
 SCENARIO = 'DownStepper-v0'
 SEED = 42
@@ -91,6 +91,26 @@ def create_random_weights():
     return [np.random.randn(*param.shape) for param in brain.parameters()]
 
 
+def flatten_weights(weights):
+    """
+    Flatten the weights into a single vector.
+    """
+    return np.concatenate([w.flatten() for w in weights])
+
+
+def unflatten_weights(weights, original_shape):
+    """
+    Unflatten the weights back to their original shape.
+    """
+    start = 0
+    unflattened_weights = []
+    for shape in original_shape:
+        size = np.prod(shape)
+        unflattened_weights.append(np.array(weights[start:start + size]).reshape(shape))
+        start += size
+    return unflattened_weights
+
+
 def genetic_algorithm(
     pop_sz=20,
     mutation_strenght=0.02,
@@ -153,7 +173,7 @@ def genetic_algorithm(
         pop = [new_pop[i] for i in sorted_idx]
         mean_fitness = np.mean(fitness_scores)
         print(
-            f'Generation {generation + 1}/{NUM_GENERATIONS}: Best Fitness: {fitness_scores[0]}, Average Fitness: {mean_fitness}'
+            f'Generation {generation + 1}/{NUM_GENERATIONS}: Best Fitness: {fitness_scores[0]:.4f}, Average Fitness: {mean_fitness:.4f}'
         )
         results[generation] = [generation + 1, fitness_scores[0], mean_fitness]
 
@@ -165,24 +185,6 @@ def genetic_algorithm(
 
 def cma_es(pop_sz=20, nr_best=5):
     # TODO: Fix. Waiting for teacher to answear the email
-    def unflatten_weights(weights, original_shape):
-        """
-        Unflatten the weights back to their original shape.
-        """
-        start = 0
-        unflattened_weights = []
-        for shape in original_shape:
-            size = np.prod(shape)
-            unflattened_weights.append(np.array(weights[start:start + size]).reshape(shape))
-            start += size
-        return unflattened_weights
-
-    def flatten_weights(weights):
-        """
-        Flatten the weights into a single vector.
-        """
-        return np.concatenate([w.flatten() for w in weights])
-
     def estimate_cov_matrix(best_pop, miu_curr_gen=None):
         """
         Estimate the covariance matrix.
@@ -195,7 +197,7 @@ def cma_es(pop_sz=20, nr_best=5):
 
     # Initialize the population
     pop = [create_random_weights() for _ in range(pop_sz)]
-    original_shape = [w.shape for w in pop[0]]  # Store the original shape of weights
+    original_shape = [w.shape for w in pop[0]]
     # Flatten the population for easier manipulation
     pop = [flatten_weights(w) for w in pop]
     # Initialize the mean of the population
@@ -225,11 +227,159 @@ def cma_es(pop_sz=20, nr_best=5):
         # Logging
         mean_fitness = np.mean(fitness_scores)
         print(
-            f'Generation {gen + 1}/{NUM_GENERATIONS}: Best Fitness: {fitness_scores[0]}, Average Fitness: {mean_fitness}'
+            f'Generation {gen + 1}/{NUM_GENERATIONS}: Best Fitness: {fitness_scores[0]:.4f}, Average Fitness: {mean_fitness:.4f}'
         )
         results[gen] = [gen + 1, fitness_scores[0], mean_fitness]
 
     return pop
+
+
+def differential_evolution(
+    pop_size=200,
+    base_vector_type='random',
+    nr_diff_vectors=1,
+    scale_factor='random',
+    scale_max=1,
+    scale_min=0.5,
+):
+    def random_base_vector():
+        """
+        Get the indexes of a random selection of individuals for the differential vectors.
+        The base (or target, as called in the slides) vector is the first one from the chosen ones.
+        """
+        nr_idx = nr_diff_vectors*2 + 1
+        return np.random.choice(pop_size, nr_idx, replace=False)
+
+    def best_base_vector():
+        """
+        Get the indexes of the best individual and of a random selection of other individuals for the differential vectors.
+        The base (or target, as called in the slides) vector is the first one from the chosen ones.
+        """
+        # Get the index of the best individual
+        best_idx = np.argmax(fitnesses)
+        nr_idx = nr_diff_vectors * 2
+
+        # Create a list of all indices except the best index
+        available_idxs = [i for i in range(pop_size) if i != best_idx]
+
+        # Randomly select indices from the available indices
+        random_idxs = np.random.choice(available_idxs, nr_idx, replace=False).tolist()
+
+        return [best_idx] + random_idxs
+
+    def random_scale(current_gen):
+        """
+        Generate a random scale factor between 0.5 and 1.0.
+        """
+        # ? In the slides, it says that the scale factor for a random scale is between 0.5 and 1.0
+        # ? but it can be between scale_min and scale_max
+        # ? Sources say its mostly used between 0.5 and 1.0, but other values could be used
+        # ? what to do
+        return np.random.uniform(0.5, 1.0)
+
+    def linear_scale(current_gen):
+        """
+        Generate a linear scale factor between scale_min and scale_max.
+        """
+        return scale_max - scale_min * ((NUM_GENERATIONS - current_gen) / NUM_GENERATIONS)
+
+    def mutate(chosen_flat, scale):
+        diff_vectors = []
+
+        # Calculate the weighted difference vectors
+        for i in range(1, len(chosen_flat), 2):
+            diff_vector = scale * (chosen_flat[i] - chosen_flat[i + 1])
+            diff_vectors.append(diff_vector)
+
+        # Create the mutant vector by adding the weighted difference vectors to the base vector
+        # The base vector is the first one in the chosen_flat list
+        mutated_vector = chosen_flat[0] + np.sum(diff_vectors, axis=0)
+
+        return mutated_vector
+
+    def crossover(target, mutant):
+        trial = target.copy()
+        for i in range(len(target)):
+            if np.random.rand() < 0.5:
+                trial[i] = mutant[i]
+
+        # Ensure at least one gene is changed
+        if np.array_equal(trial, target):
+            rand_idx = np.random.randint(len(target))
+            trial[rand_idx] = mutant[rand_idx]
+
+        return trial
+
+    if base_vector_type == 'random':
+        choose_base_vector = random_base_vector
+    elif base_vector_type == 'best':
+        choose_base_vector = best_base_vector
+    else:
+        raise ValueError("Invalid base vector type. Use 'random' or 'best'.")
+
+    if nr_diff_vectors >= (pop_size - 1) / 2:
+        raise ValueError("Number of difference vectors must be less than half the population size.")
+
+    if scale_factor == 'random':
+        calculate_scale = random_scale
+    elif scale_factor == 'linear':
+        calculate_scale = linear_scale
+    else:
+        raise ValueError("Invalid scale factor type. Use 'random' or 'linear'.")
+
+    results = np.zeros((NUM_GENERATIONS, 3))
+
+    # 1. Generate a random population within bounds
+    pop = [create_random_weights() for _ in range(pop_size)]
+    original_shape = [w.shape for w in pop[0]]
+
+    # Evaluate the initial population
+    fitnesses = np.zeros(pop_size)
+    for i, individual in enumerate(pop):
+        r = evaluate_fitness(individual)
+        fitnesses[i] = r
+
+    for gen in range(NUM_GENERATIONS):
+        new_pop = copy.deepcopy(pop)
+        new_fitnesses = copy.deepcopy(fitnesses)
+
+        for _ in range(pop_size):
+            scale = calculate_scale(gen)
+            # Choose the base vector, and vectors used to calculate the differential vectors
+            # The base (or target, as called in the slides) vector is the first one from the chosen ones
+            chosen_idxs = choose_base_vector()
+
+            # Flatten the weights of the chosen individuals for easier manipulation
+            chosen_flat = [flatten_weights(pop[i]) for i in chosen_idxs]
+
+            # 2. Create mutant (or variant, as called in the slides) vector by combining weighted differences of solutions
+            mutant = mutate(chosen_flat, scale)
+
+            # 3. Mix mutant vector with base vector to create trial solutions
+            trial = crossover(chosen_flat[0], mutant)
+
+            # 4. Choose the better solution between the base and trial vectors
+            target_r = fitnesses[chosen_idxs[0]]
+            # Unflatten the trial vector to evaluate fitness
+            trial = unflatten_weights(trial, original_shape)
+            trial_r = evaluate_fitness(trial)
+
+            if trial_r > target_r:
+                new_pop[chosen_idxs[0]] = trial
+                new_fitnesses[chosen_idxs[0]] = trial_r
+
+        pop = copy.deepcopy(new_pop)
+        fitnesses = copy.deepcopy(new_fitnesses)
+
+        # Logging
+        best_fit_idx = np.argmax(fitnesses)
+        mean_fitness = np.mean(fitnesses)
+        print(
+            f'Generation {gen + 1}/{NUM_GENERATIONS}: Best Fitness: {fitnesses[best_fit_idx]:.4f}, Average Fitness: {mean_fitness:.4f}'
+        )
+        results[gen] = [gen + 1, fitnesses[best_fit_idx], mean_fitness]
+
+    return pop[best_fit_idx], fitnesses[best_fit_idx], results
 
 
 def run_genetic_algorithm():
@@ -241,6 +391,9 @@ def run_genetic_algorithm():
     tournament_size = 5
     elite_size = 2
 
+    print('Starting Genetic Algorithm...')
+    start_time = time.time()
+
     # Example usage
     best_weights, best_fitness, results = genetic_algorithm(
         population_size,
@@ -250,6 +403,10 @@ def run_genetic_algorithm():
         tournament_size,
         elite_size,
     )
+
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+    print(f"Elapsed time: {elapsed_time} seconds")
 
     time_str = f'{time.strftime("%Y-%m-%d_%Hh%Mm%Ss")}_S{STEPS}_G{NUM_GENERATIONS}'
     path = os.path.join('results', 'controller', 'ga', time_str)
@@ -267,6 +424,7 @@ def run_genetic_algorithm():
         f.write(f'K_Points: {k_points}\n')
         f.write(f'Tournament_Size: {tournament_size}\n')
         f.write(f'Elite_Size: {elite_size}\n\n')
+        f.write(f'Elapsed_Time: {elapsed_time} seconds\n\n')
 
         f.write('Generation | Best Fitness | Avg Fitness\n')
         for it, best_fitness, avg_fitness in results:
@@ -277,20 +435,16 @@ def run_genetic_algorithm():
     # Save the best weights vector to a file
     np.save(f'{path}\\best_weights.npy', best_weights)
 
-    print(f'Best weights vector found: {best_weights}')
-    print(f'Best fitness score: {best_fitness}')
-
     set_weights(brain, best_weights)  # Load weights into the network
-    create_gif(
+    create_gif_brain(
         robot_structure,
-        filename=f'{path}\\ga.gif',
+        brain,
+        filename=f'{path}\\best_robot.gif',
         scenario=SCENARIO,
         steps=STEPS,
-        controller=brain,
     )
 
-    for _ in range(10):
-        visualize_policy(best_weights)
+    # visualize_policy(best_weights)
 
     return
 
@@ -300,8 +454,15 @@ def run_cma_es():
     population_size = 20
     nr_best = 5
 
+    print('Starting CMA-ES...')
+    start_time = time.time()
+
     # Example usage
     best_weights, best_fitness, results = cma_es(population_size, nr_best)
+
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+    print(f"Elapsed time: {elapsed_time} seconds")
 
     time_str = f'{time.strftime("%Y-%m-%d_%Hh%Mm%Ss")}_S{STEPS}_G{NUM_GENERATIONS}'
     path = os.path.join('results', 'controller', 'cma', time_str)
@@ -315,6 +476,7 @@ def run_cma_es():
         f.write(f'Seed: {SEED}\n')
         f.write(f'Population_Size: {population_size}\n')
         f.write(f'Nr_Best: {nr_best}\n\n')
+        f.write(f'Elapsed_Time: {elapsed_time} seconds\n\n')
 
         f.write('Generation | Best Fitness | Avg Fitness\n')
         for it, best_fitness, avg_fitness in results:
@@ -325,28 +487,92 @@ def run_cma_es():
     # Save the best weights vector to a file
     np.save(f'{path}\\best_weights.npy', best_weights)
 
-    print(f'Best weights vector found: {best_weights}')
-    print(f'Best fitness score: {best_fitness}')
-
     set_weights(brain, best_weights)  # Load weights into the network
-    create_gif(
+    create_gif_brain(
         robot_structure,
-        filename=f'{path}\\cma.gif',
+        brain,
+        filename=f'{path}\\best_robot.gif',
         scenario=SCENARIO,
         steps=STEPS,
-        controller=brain,
     )
 
-    for _ in range(10):
-        visualize_policy(best_weights)
+    # visualize_policy(best_weights)
+
+    return
+
+
+def run_differential_evolution():
+    # Parameters
+    population_size = 20
+    base_vector_type = 'best'  # 'random' or 'best'
+    nr_diff_vectors = 3
+    scale_factor = 'linear'  # 'random' or 'linear'
+    scale_max = 1
+    scale_min = 0.5
+
+    print('Starting Differential Evolution...')
+    start_time = time.time()
+
+    # Example usage
+    best_weights, best_fitness, results = differential_evolution(
+        population_size,
+        base_vector_type,
+        nr_diff_vectors,
+        scale_factor,
+        scale_max,
+        scale_min,
+    )
+
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+    print(f"Elapsed time: {elapsed_time} seconds")
+
+    time_str = f'{time.strftime("%Y-%m-%d_%Hh%Mm%Ss")}_S{STEPS}_G{NUM_GENERATIONS}'
+    path = os.path.join('results', 'controller', 'de', time_str)
+    os.makedirs(path)
+
+    # Save results to a text file
+    with open(f'{path}\\results.txt', 'w') as f:
+        f.write(f'Generations: {NUM_GENERATIONS}\n')
+        f.write(f'Steps: {STEPS}\n')
+        f.write(f'Scenario: {SCENARIO}\n')
+        f.write(f'Seed: {SEED}\n')
+        f.write(f'Population_Size: {population_size}\n')
+        f.write(f'Base_Vector_Type: {base_vector_type}\n')
+        f.write(f'Nr_Diff_Vectors: {nr_diff_vectors}\n')
+        f.write(f'Scale_Factor: {scale_factor}\n')
+        f.write(f'Scale_Max: {scale_max}\n')
+        f.write(f'Scale_Min: {scale_min}\n\n')
+        f.write(f'Elapsed_Time: {elapsed_time} seconds\n\n')
+
+        f.write('Generation | Best Fitness | Avg Fitness\n')
+        for it, best_fitness, avg_fitness in results:
+            f.write(
+                f'{int(it):<10} | {best_fitness:<12.6f} | {avg_fitness:.6f}\n'
+            )
+
+    # Save the best weights vector to a file
+    np.save(f'{path}\\best_weights.npy', np.array(best_weights, dtype=object))
+
+    set_weights(brain, best_weights)  # Load weights into the network
+    create_gif_brain(
+        robot_structure,
+        brain,
+        filename=f'{path}\\best_robot.gif',
+        scenario=SCENARIO,
+        steps=STEPS,
+    )
+
+    # visualize_policy(best_weights)
 
     return
 
 
 def main():
-    start_time = time.time()
     # run_genetic_algorithm()
-    cma_es()
+    # run_cma_es()
+    start_time = time.time()
+    run_differential_evolution()
     end_time = time.time()
     print("Elapsed time: " + str(end_time-start_time))
     return
