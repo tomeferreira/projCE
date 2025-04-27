@@ -10,12 +10,17 @@ from evogym import EvoViewer, get_full_connectivity
 from neural_controller import *
 
 # ---- PARAMETERS ----
-NUM_GENERATIONS = 20
+NUM_GENERATIONS = 100
 STEPS = 500
 SCENARIO = 'DownStepper-v0'
-SEED = 42
-np.random.seed(SEED)
-random.seed(SEED)
+SEEDS = [68167, 91803, 39233, 58400, 97664]
+
+
+def set_seed(seed):
+    random.seed(seed)
+    np.random.seed(seed)
+    print("Seed set")
+    return
 
 
 robot_structure = np.array([
@@ -406,7 +411,7 @@ def differential_evolution(
     return pop[best_fit_idx], fitnesses[best_fit_idx], results
 
 
-def run_random_search():
+def run_random_search(seed):
     # Parameters
     population_size = 20
 
@@ -420,7 +425,7 @@ def run_random_search():
     elapsed_time = end_time - start_time
     print(f"Elapsed time: {elapsed_time} seconds")
 
-    time_str = f'{time.strftime("%Y-%m-%d_%Hh%Mm%Ss")}_S{STEPS}_G{NUM_GENERATIONS}'
+    time_str = f'{time.strftime("%Y-%m-%d_%Hh%Mm%Ss")}_S{seed}'
     path = os.path.join('results', 'controller', 'random', time_str)
     os.makedirs(path)
 
@@ -429,7 +434,7 @@ def run_random_search():
         f.write(f'Generations: {NUM_GENERATIONS}\n')
         f.write(f'Steps: {STEPS}\n')
         f.write(f'Scenario: {SCENARIO}\n')
-        f.write(f'Seed: {SEED}\n')
+        f.write(f'Seed: {seed}\n')
         f.write(f'Population_Size: {population_size}\n\n')
         f.write(f'Elapsed_Time: {elapsed_time} seconds\n\n')
 
@@ -456,7 +461,7 @@ def run_random_search():
     return
 
 
-def run_genetic_algorithm():
+def run_genetic_algorithm(seed):
     # Parameters
     population_size = 20
     mutation_strenght = 0.02
@@ -482,7 +487,7 @@ def run_genetic_algorithm():
     elapsed_time = end_time - start_time
     print(f"Elapsed time: {elapsed_time} seconds")
 
-    time_str = f'{time.strftime("%Y-%m-%d_%Hh%Mm%Ss")}_S{STEPS}_G{NUM_GENERATIONS}'
+    time_str = f'{time.strftime("%Y-%m-%d_%Hh%Mm%Ss")}_S{seed}'
     path = os.path.join('results', 'controller', 'ga', time_str)
     os.makedirs(path)
 
@@ -491,7 +496,7 @@ def run_genetic_algorithm():
         f.write(f'Generation: {NUM_GENERATIONS}\n')
         f.write(f'Steps: {STEPS}\n')
         f.write(f'Scenario: {SCENARIO}\n')
-        f.write(f'Seed: {SEED}\n')
+        f.write(f'Seed: {seed}\n')
         f.write(f'Population_Size: {population_size}\n')
         f.write(f'Mutation_Strength: {mutation_strenght}\n')
         f.write(f'Mutation_Rate: {mutation_rate}\n')
@@ -523,7 +528,7 @@ def run_genetic_algorithm():
     return
 
 
-def run_cma_es():
+def run_cma_es(seed):
     # Parameters
     population_size = 20
     nr_best = 5
@@ -538,7 +543,7 @@ def run_cma_es():
     elapsed_time = end_time - start_time
     print(f"Elapsed time: {elapsed_time} seconds")
 
-    time_str = f'{time.strftime("%Y-%m-%d_%Hh%Mm%Ss")}_S{STEPS}_G{NUM_GENERATIONS}'
+    time_str = f'{time.strftime("%Y-%m-%d_%Hh%Mm%Ss")}_S{seed}'
     path = os.path.join('results', 'controller', 'cma', time_str)
     os.makedirs(path)
 
@@ -547,7 +552,7 @@ def run_cma_es():
         f.write(f'Generation: {NUM_GENERATIONS}\n')
         f.write(f'Steps: {STEPS}\n')
         f.write(f'Scenario: {SCENARIO}\n')
-        f.write(f'Seed: {SEED}\n')
+        f.write(f'Seed: {seed}\n')
         f.write(f'Population_Size: {population_size}\n')
         f.write(f'Nr_Best: {nr_best}\n\n')
         f.write(f'Elapsed_Time: {elapsed_time} seconds\n\n')
@@ -575,12 +580,12 @@ def run_cma_es():
     return
 
 
-def run_differential_evolution():
+def run_differential_evolution(seed):
     # Parameters
     population_size = 20
-    base_vector_type = 'best'  # 'random' or 'best'
-    nr_diff_vectors = 3
-    scale_factor = 'linear'  # 'random' or 'linear'
+    base_vector_type = 'random'  # 'random' or 'best'
+    nr_diff_vectors = 1
+    scale_factor = 'random'  # 'random' or 'linear'
     scale_max = 1
     scale_min = 0.5
 
@@ -601,7 +606,7 @@ def run_differential_evolution():
     elapsed_time = end_time - start_time
     print(f"Elapsed time: {elapsed_time} seconds")
 
-    time_str = f'{time.strftime("%Y-%m-%d_%Hh%Mm%Ss")}_S{STEPS}_G{NUM_GENERATIONS}'
+    time_str = f'{time.strftime("%Y-%m-%d_%Hh%Mm%Ss")}_S{seed}'
     path = os.path.join('results', 'controller', 'de', time_str)
     os.makedirs(path)
 
@@ -610,7 +615,7 @@ def run_differential_evolution():
         f.write(f'Generations: {NUM_GENERATIONS}\n')
         f.write(f'Steps: {STEPS}\n')
         f.write(f'Scenario: {SCENARIO}\n')
-        f.write(f'Seed: {SEED}\n')
+        f.write(f'Seed: {seed}\n')
         f.write(f'Population_Size: {population_size}\n')
         f.write(f'Base_Vector_Type: {base_vector_type}\n')
         f.write(f'Nr_Diff_Vectors: {nr_diff_vectors}\n')
@@ -643,10 +648,13 @@ def run_differential_evolution():
 
 
 def main():
-    run_random_search()
-    # run_genetic_algorithm()
-    # run_cma_es()
-    # run_differential_evolution()
+    for seed in SEEDS:
+        set_seed(seed)
+        # run_random_search(seed)
+        # run_genetic_algorithm(seed)
+        # run_cma_es(seed)
+        run_differential_evolution(seed)
+
     return
 
 
