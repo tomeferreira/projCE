@@ -8,6 +8,7 @@ import pandas as pd
 from evogym.envs import *
 from evogym import EvoViewer, get_full_connectivity
 from neural_controller import *
+from cmaes import CMA
 
 # ---- PARAMETERS ----
 NUM_GENERATIONS = 100
@@ -210,57 +211,6 @@ def genetic_algorithm(
     best_fitness = fitness_scores[0]
 
     return best_weights, best_fitness, results
-
-
-def cma_es(pop_sz=20, nr_best=5):
-    # TODO: Fix. Waiting for teacher to answear the email
-    def estimate_cov_matrix(best_pop, miu_curr_gen=None):
-        """
-        Estimate the covariance matrix.
-        """
-        miu_next_gen = np.mean(best_pop, axis=0)
-        cov_matrix = np.cov(best_pop, rowvar=False)
-        return cov_matrix, miu_next_gen
-
-    results = np.zeros((NUM_GENERATIONS, 3))
-
-    # Initialize the population
-    pop = [create_random_weights() for _ in range(pop_sz)]
-    original_shape = [w.shape for w in pop[0]]
-    # Flatten the population for easier manipulation
-    pop = [flatten_weights(w) for w in pop]
-    # Initialize the mean of the population
-    miu = np.mean(pop, axis=0)
-    dim = miu.shape[0]
-    # Initialize the covariance matrix as an identity matrix
-    cov_matrix = np.eye(dim)
-
-    for gen in range(NUM_GENERATIONS):
-        # Unflatten the population to evaluate fitness
-        pop = [unflatten_weights(w, original_shape) for w in pop]
-        # Evaluate fitness and sort population
-        fitness_scores = np.array([evaluate_fitness(ind) for ind in pop])
-        sorted_idx = np.argsort(-fitness_scores)
-        pop = [pop[i] for i in sorted_idx]
-
-        # Flatten the best individuals for covariance estimation
-        best_pop = np.array(pop[:nr_best])
-        best_pop = np.array([flatten_weights(w) for w in best_pop])
-
-        # Calculate the covariance matrix and mean of the best individuals
-        cov_matrix, miu = estimate_cov_matrix(best_pop)
-
-        # Sample new population from multivariate normal distribution
-        pop = multivariate_normal.rvs(mean=miu, cov=cov_matrix, size=pop_sz).tolist()
-
-        # Logging
-        mean_fitness = np.mean(fitness_scores)
-        print(
-            f'Generation {gen + 1}/{NUM_GENERATIONS}: Best Fitness: {fitness_scores[0]:.4f}, Average Fitness: {mean_fitness:.4f}'
-        )
-        results[gen] = [gen + 1, fitness_scores[0], mean_fitness]
-
-    return pop
 
 
 def differential_evolution(
@@ -531,42 +481,77 @@ def run_genetic_algorithm(seed):
 def run_cma_es(seed):
     # Parameters
     population_size = 20
-    nr_best = 5
+    param_shape = [param.shape for param in brain.parameters()]
+    dim = sum(np.prod(shape) for shape in param_shape)  # Flattened dimension
+    sigma = 1.3  # Initial standard deviation
 
     print('Starting CMA-ES...')
     start_time = time.time()
 
-    # Example usage
-    best_weights, best_fitness, results = cma_es(population_size, nr_best)
+    # Initialize the CMA optimizer
+    optimizer = CMA(mean=np.zeros(dim), sigma=sigma, population_size=population_size)
+
+    # To store generation, best fitness, and average fitness
+    results = np.zeros((NUM_GENERATIONS, 3))
+
+    best_solution = None
+    best_fitness = -np.inf  # Initialize with a very low fitness value
+
+    for generation in range(NUM_GENERATIONS):
+        solutions = []
+        fitness_scores = []
+
+        # Generate and evaluate solutions
+        for _ in range(optimizer.population_size):
+            flat_weights = optimizer.ask()
+            weights = unflatten_weights(flat_weights, param_shape)
+            fitness = evaluate_fitness(weights)
+            solutions.append((flat_weights, -fitness))  # Negate fitness for minimization
+            fitness_scores.append(fitness)
+
+            # Update the best solution if a better one is found
+            if fitness > best_fitness:
+                best_fitness = fitness
+                best_solution = flat_weights
+
+        # Update the optimizer with the evaluated solutions
+        optimizer.tell(solutions)
+
+        # Logging
+        avg_fitness = np.mean(fitness_scores)
+        print(
+            f"Generation {generation + 1}/{NUM_GENERATIONS}: Best Fitness = {best_fitness:.4f}, Average Fitness = {avg_fitness:.4f}")
+        results[generation] = [generation + 1, best_fitness, avg_fitness]
+
+    # Get the best solution
+    best_weights = unflatten_weights(best_solution, param_shape)
 
     end_time = time.time()
     elapsed_time = end_time - start_time
     print(f"Elapsed time: {elapsed_time} seconds")
 
+    # Save results
     time_str = f'{time.strftime("%Y-%m-%d_%Hh%Mm%Ss")}_S{seed}'
     path = os.path.join('results', 'controller', 'cma', time_str)
-    os.makedirs(path)
+    os.makedirs(path, exist_ok=True)
 
-    # Save results to a text file
     with open(f'{path}\\results.txt', 'w') as f:
-        f.write(f'Generation: {NUM_GENERATIONS}\n')
+        f.write(f'Generations: {NUM_GENERATIONS}\n')
         f.write(f'Steps: {STEPS}\n')
         f.write(f'Scenario: {SCENARIO}\n')
         f.write(f'Seed: {seed}\n')
         f.write(f'Population_Size: {population_size}\n')
-        f.write(f'Nr_Best: {nr_best}\n\n')
+        f.write(f'Sigma: {sigma}\n\n')
         f.write(f'Elapsed_Time: {elapsed_time} seconds\n\n')
 
         f.write('Generation | Best Fitness | Avg Fitness\n')
-        for it, best_fitness, avg_fitness in results:
-            f.write(
-                f'{int(it):<10} | {best_fitness:<12.6f} | {avg_fitness:.6f}\n'
-            )
+        for it, best_fitness_idx, avg_fitness in results:
+            f.write(f'{int(it):<10} | {best_fitness_idx:<12.6f} | {avg_fitness:.6f}\n')
 
-    # Save the best weights vector to a file
+    # Save the best weights
     np.save(f'{path}\\best_weights.npy', best_weights)
 
-    set_weights(brain, best_weights)  # Load weights into the network
+    set_weights(brain, best_weights)
     create_gif_brain(
         robot_structure,
         brain,
@@ -574,8 +559,6 @@ def run_cma_es(seed):
         scenario=SCENARIO,
         steps=STEPS,
     )
-
-    # visualize_policy(best_weights)
 
     return
 
@@ -652,8 +635,8 @@ def main():
         set_seed(seed)
         # run_random_search(seed)
         # run_genetic_algorithm(seed)
-        # run_cma_es(seed)
-        run_differential_evolution(seed)
+        run_cma_es(seed)
+        # run_differential_evolution(seed)
 
     return
 
