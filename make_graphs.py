@@ -59,6 +59,9 @@ def graph_5_runs(PATH,NUM_GENERATIONS,POP_SIZE,MUTATION_RATE,TOURNAMENT_SIZE,ELI
     mean_array = np.mean([df.values for df in df_list], axis=0)
     mean_df = pd.DataFrame(mean_array, columns=df_list[0].columns)
 
+    std_array = np.std([df.values for df in df_list], axis=0)
+    std_df = pd.DataFrame(std_array, columns=df_list[0].columns)
+
     # Create the figure
     fig = go.Figure()
 
@@ -78,6 +81,58 @@ def graph_5_runs(PATH,NUM_GENERATIONS,POP_SIZE,MUTATION_RATE,TOURNAMENT_SIZE,ELI
         mode='lines', 
         name='Mean Reward',
         line=dict(color='orange')
+    ))
+
+    # Calculate upper and lower bounds for mean ± std
+    upper_bound_mean = mean_df["Mean Fitness"] + std_df["Mean Fitness"]
+    lower_bound_mean = mean_df["Mean Fitness"] - std_df["Mean Fitness"]
+
+    # Add the upper bound (invisible trace, used for fill)
+    fig.add_trace(go.Scatter(
+        x=mean_df["Iteration"],
+        y=upper_bound_mean,
+        mode='lines',
+        line=dict(width=0),
+        name='Upper Bound Mean',
+        showlegend=False
+    ))
+
+    # Add the lower bound with fill to the previous trace
+    fig.add_trace(go.Scatter(
+        x=mean_df["Iteration"],
+        y=lower_bound_mean,
+        mode='lines',
+        line=dict(width=0),
+        fill='tonexty',  # Fill to trace before (upper bound)
+        fillcolor='rgba(255,165,0,0.2)',  # Light orange
+        name='Std Dev Mean',
+        showlegend=False
+    ))
+
+     # Calculate upper and lower bounds for mean ± std
+    upper_bound_best = mean_df["Fitness"] + std_df["Fitness"]
+    lower_bound_best = mean_df["Fitness"] - std_df["Fitness"]
+
+    # Add the upper bound (invisible trace, used for fill)
+    fig.add_trace(go.Scatter(
+        x=mean_df["Iteration"],
+        y=upper_bound_best,
+        mode='lines',
+        line=dict(width=0),
+        name='Upper Bound Best',
+        showlegend=False
+    ))
+
+    # Add the lower bound with fill to the previous trace
+    fig.add_trace(go.Scatter(
+        x=mean_df["Iteration"],
+        y=lower_bound_best,
+        mode='lines',
+        line=dict(width=0),
+        fill='tonexty',  # Fill to trace before (upper bound)
+        fillcolor='rgba(0,0,255,0.2)',  # Light blue
+        name='Std Dev Best',
+        showlegend=False
     ))
 
     # Customize layout
