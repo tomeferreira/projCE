@@ -11,7 +11,7 @@ from neural_controller import *
 from cmaes import CMA
 
 # ---- PARAMETERS ----
-NUM_GENERATIONS = 100
+NUM_GENERATIONS = 250
 STEPS = 500
 SCENARIO = 'DownStepper-v0'
 SEEDS = [68167, 91803, 39233, 58400, 97664]
@@ -150,7 +150,7 @@ def genetic_algorithm(
     elite_size=2,
 ):
     def mutate(weights, mutation_rate=0.1, mutation_strength=0.02):
-        mutated_weights = [w.copy() for w in weights]
+        mutated_weights = [copy.deepcopy(w) for w in weights]
 
         # Apply mutation to each array in the list
         for i, array in enumerate(mutated_weights):
@@ -162,7 +162,7 @@ def genetic_algorithm(
 
     def k_points_crossover(parent1, parent2, k=2):
         # Perform k-points crossover between two parent weigths
-        child = parent1.copy()
+        child = copy.deepcopy(parent1)
         points = np.random.choice(len(parent1), k, replace=False)
         points.sort()
         for i in range(k):
@@ -277,7 +277,7 @@ def differential_evolution(
         return mutated_vector
 
     def crossover(target, mutant):
-        trial = target.copy()
+        trial = copy.deepcopy(target)
         for i in range(len(target)):
             if np.random.rand() < 0.5:
                 trial[i] = mutant[i]
@@ -363,7 +363,7 @@ def differential_evolution(
 
 def run_random_search(seed):
     # Parameters
-    population_size = 20
+    population_size = 50
 
     print('Starting Random Search...')
     start_time = time.time()
@@ -413,7 +413,7 @@ def run_random_search(seed):
 
 def run_genetic_algorithm(seed):
     # Parameters
-    population_size = 20
+    population_size = 50
     mutation_strenght = 0.02
     mutation_rate = 0.05
     k_points = 2
@@ -480,10 +480,11 @@ def run_genetic_algorithm(seed):
 
 def run_cma_es(seed):
     # Parameters
-    population_size = 20
+    population_size = 50
+    sigma = 1.3
+
     param_shape = [param.shape for param in brain.parameters()]
     dim = sum(np.prod(shape) for shape in param_shape)  # Flattened dimension
-    sigma = 1.3  # Initial standard deviation
 
     print('Starting CMA-ES...')
     start_time = time.time()
@@ -565,7 +566,7 @@ def run_cma_es(seed):
 
 def run_differential_evolution(seed):
     # Parameters
-    population_size = 20
+    population_size = 50
     base_vector_type = 'random'  # 'random' or 'best'
     nr_diff_vectors = 1
     scale_factor = 'random'  # 'random' or 'linear'
@@ -633,10 +634,10 @@ def run_differential_evolution(seed):
 def main():
     for seed in SEEDS:
         set_seed(seed)
-        # run_random_search(seed)
-        # run_genetic_algorithm(seed)
+        run_random_search(seed)
+        run_genetic_algorithm(seed)
         run_cma_es(seed)
-        # run_differential_evolution(seed)
+        run_differential_evolution(seed)
 
     return
 
