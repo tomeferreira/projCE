@@ -9,12 +9,16 @@ from evogym.envs import *
 from evogym import EvoViewer, get_full_connectivity
 from neural_controller import *
 from cmaes import CMA
+from concurrent.futures import ProcessPoolExecutor
 
 # ---- PARAMETERS ----
 NUM_GENERATIONS = 250
 STEPS = 500
 SCENARIO = 'DownStepper-v0'
 SEEDS = [68167, 91803, 39233, 58400, 97664]
+
+# Set the number of CPU cores to use for parallel processing
+NUM_CORES = os.cpu_count() - 1
 
 
 def set_seed(seed):
@@ -125,7 +129,9 @@ def random_search(pop_sz=20):
         pop = [create_random_weights() for _ in range(pop_sz)]
 
         # Evaluate fitness for the population
-        fitness_scores = np.array([evaluate_fitness(ind) for ind in pop])
+        with ProcessPoolExecutor(max_workers=NUM_CORES) as executor:
+            fitness_scores = np.array(list(executor.map(evaluate_fitness, pop)))
+
         best_idx = np.argmax(fitness_scores)
         best_fitness = fitness_scores[best_idx]
         mean_fitness = np.mean(fitness_scores)
@@ -182,7 +188,9 @@ def genetic_algorithm(
     pop = [create_random_weights() for _ in range(pop_sz)]
 
     # Evaluate the initial population
-    fitness_scores = np.array([evaluate_fitness(ind) for ind in pop])
+    with ProcessPoolExecutor(max_workers=NUM_CORES) as executor:
+        fitness_scores = np.array(list(executor.map(evaluate_fitness, pop)))
+
     sorted_idx = np.argsort(-fitness_scores)
     pop = [pop[i] for i in sorted_idx]
 
@@ -197,7 +205,9 @@ def genetic_algorithm(
             new_pop.append(child)
 
         # Evaluate the population
-        fitness_scores = np.array([evaluate_fitness(ind) for ind in new_pop])
+        with ProcessPoolExecutor(max_workers=NUM_CORES) as executor:
+            fitness_scores = np.array(list(executor.map(evaluate_fitness, pop)))
+
         sorted_idx = np.argsort(-fitness_scores)
         fitness_scores = [fitness_scores[i] for i in sorted_idx]
         pop = [new_pop[i] for i in sorted_idx]
@@ -312,11 +322,8 @@ def differential_evolution(
     pop = [create_random_weights() for _ in range(pop_sz)]
     original_shape = [w.shape for w in pop[0]]
 
-    # Evaluate the initial population
-    fitnesses = np.zeros(pop_sz)
-    for i, individual in enumerate(pop):
-        r = evaluate_fitness(individual)
-        fitnesses[i] = r
+    with ProcessPoolExecutor(max_workers=NUM_CORES) as executor:
+        fitnesses = np.array(list(executor.map(evaluate_fitness, pop)))
 
     for gen in range(NUM_GENERATIONS):
         new_pop = copy.deepcopy(pop)
@@ -502,12 +509,18 @@ def run_cma_es(seed):
         solutions = []
         fitness_scores = []
 
-        # Generate and evaluate solutions
-        for _ in range(optimizer.population_size):
-            flat_weights = optimizer.ask()
-            weights = unflatten_weights(flat_weights, param_shape)
-            fitness = evaluate_fitness(weights)
-            solutions.append((flat_weights, -fitness))  # Negate fitness for minimization
+        # Generate solutions
+        flat_weights_list = [optimizer.ask() for _ in range(optimizer.population_size)]
+
+        # Evaluate solutions
+        with ProcessPoolExecutor(max_workers=NUM_CORES) as executor:
+            fitness_results = list(executor.map(evaluate_fitness,
+                                                [unflatten_weights(w, param_shape) for w in flat_weights_list]))
+
+        # Process the results
+        for flat_weights, fitness in zip(flat_weights_list, fitness_results):
+            # Negate fitness for minimization
+            solutions.append((flat_weights, -fitness))
             fitness_scores.append(fitness)
 
             # Update the best solution if a better one is found
@@ -634,8 +647,13 @@ def run_differential_evolution(seed):
 def main():
     for seed in SEEDS:
         set_seed(seed)
-        run_random_search(seed)
-        run_genetic_algorithm(seed)
+
+        # This is because we already have the results for the seed 68167
+        # and we don't want to run the algorithms again
+        if seed != 68167:
+            run_random_search(seed)
+            run_genetic_algorithm(seed)
+
         run_cma_es(seed)
         run_differential_evolution(seed)
 
