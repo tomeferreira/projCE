@@ -87,9 +87,44 @@ def test_3_1_Walker_same_controller():
 
 	return
 
+def test_3_1_Walker_different_controller():
+	# Load data
+	best_alternating_gait = load_data('students\\results\\ga\\250_GA\\uniform_crossover_5_mutation')
+	best_hopping_motion = load_data('students\\results\\ga\\hopping_motion')
+	best_sinusoidal_wave = load_data('students\\results\\ga\\sinusoidal_wave')
+
+	print(best_alternating_gait)
+	print(best_hopping_motion)
+	print(best_sinusoidal_wave)
+
+	# Test Normality
+	print('Normality testing w\\Shapiro-Wilk')
+	print(f'Alternating Gait: {test_normal_sw(best_alternating_gait)}')
+	print(f'Hopping Motion: {test_normal_sw(best_hopping_motion)}')
+	print(f'Sinusoidal Wave: {test_normal_sw(best_sinusoidal_wave)}')
+
+	# Hypothesis testing
+	print(f'Kruskal Wallis test: {kruskal_wallis((best_alternating_gait,best_hopping_motion,best_sinusoidal_wave))}')
+
+	print(f'Alternating Gait vs Hopping Motion: {mann_whitney(best_alternating_gait,best_hopping_motion)}')
+	print(f'Alternating Gait vs Sinusoidal Wave: {mann_whitney(best_alternating_gait, best_sinusoidal_wave)}')
+
+	print(f'Hopping Motion vs Sinusoidal Wave: {mann_whitney(best_hopping_motion, best_sinusoidal_wave)}')
+
+	# Which is better?
+
+	print('Of the similar ones, which one is better?')
+	print(f'Alternating Gait: {np.mean(best_alternating_gait)}')
+	print(f'Hopping Motion: {np.mean(best_hopping_motion)}')
+	print(f'Sinusoidal Wave: {np.mean(best_sinusoidal_wave)}')
+
+	return
+
 def main():
 
 	test_3_1_Walker_same_controller()
+
+	test_3_1_Walker_different_controller()
 	
 	return
 
