@@ -23,7 +23,7 @@ def set_seed(seed):
     return
 
 # ---- PARAMETERS ----
-NUM_CORES = 6
+NUM_CORES = 9
 NUM_GENERATIONS = 250  # Number of generations to evolve
 ELITISM_SIZE = 2
 TOURNAMENT_SIZE = 5
@@ -32,11 +32,11 @@ MUTATION_RATE = 0.05
 MIN_GRID_SIZE = (5, 5)  # Minimum size of the robot grid
 MAX_GRID_SIZE = (5, 5)  # Maximum size of the robot grid
 STEPS = 500
-SCENARIO = 'Walker-v0'
+SCENARIO = 'BridgeWalker-v0'
 # ---- VOXEL TYPES ----
 VOXEL_TYPES = [0, 1, 2, 3, 4]  # Empty, Rigid, Soft, Active (+/-)
 
-CONTROLLER = alternating_gait
+CONTROLLER = sinusoidal_wave
 
 def circular_variance(thetas):
     C = np.mean(np.cos(thetas))
@@ -102,8 +102,8 @@ def evaluate_fitness(robot_structure, view=False):
             # print(f'Distancia fitness: {(end_pos-start_pos)/100}')
             fitness+=(end_pos-start_pos)/100
 
-        if np.count_nonzero(robot_structure[4])==5:
-            fitness-=10
+        # if np.count_nonzero(robot_structure[4])==5:
+        #     fitness-=10
 
         # print(f'Multiplier: {np.count_nonzero(robot_structure)/25}')
         # fitness=fitness*(1-(np.count_nonzero(robot_structure)/25)*0.25)
@@ -182,49 +182,38 @@ def run_hill_climber():
 def random_search():
     """Perform a random search to find the best robot structure."""
 
-    results = np.zeros((NUM_GENERATIONS,2))
-
     best_robot = None
     best_fitness = -float('inf')
-    
-    for it in range(NUM_GENERATIONS):
-        robot = create_random_robot() 
-        fitness_score = evaluate_fitness(robot)
-        
-        if fitness_score > best_fitness:
-            best_fitness = fitness_score
-            best_robot = robot
-        
-        print(f"Iteration {it + 1}: Fitness = {fitness_score}")
-        results[it] = [it+1,fitness_score]
-    
-    results = pd.DataFrame(results,columns=['Iteration','Fitness'])
-    results['Iteration'] = results['Iteration'].astype('int32')
 
-    return best_robot, best_fitness, results
+    population = [create_random_robot() for _ in range(POP_SIZE*(NUM_GENERATIONS+1))]
+    with ProcessPoolExecutor(max_workers=NUM_CORES) as executor:
+        temp_results = np.array(list(executor.map(evaluate_fitness, population)))
+    
+    reward_scores = temp_results[:,0]
+    fitness_scores = temp_results[:,1]
+
+    sorted_indices = np.argsort(-reward_scores)
+    population = [population[i] for i in sorted_indices]
+    reward_scores = [reward_scores[i] for i in sorted_indices]
+    fitness_scores = [fitness_scores[i] for i in sorted_indices]
+
+    best_robot = population[0]
+    best_fitness = fitness_scores[0]
+    best_reward = reward_scores[0]
+
+    return best_robot, best_fitness, best_reward
 
 def run_random_search(seed):
 
     json_file = dict()
 
-    start_time = time.time()
-
     # Example usage
-    best_robot, best_fitness, results = random_search()
+    best_robot, best_fitness, best_reward = random_search()
     
-    end_time = time.time()
-    elapsed_time = end_time-start_time
-
-    json_file['elapsed_time']=elapsed_time
-
-    print("Elapsed time: " + str(elapsed_time))
-
     time_str = str(time.strftime("%Y-%m-%d_%Hh%Mm%Ss"))+"_S"+str(seed)+"_G"+str(NUM_GENERATIONS)
     path = os.path.join("students","results","random_search",time_str)
 
     os.makedirs(path)
-
-    results.to_csv(path+'\\fitness_history.csv',index=False)
 
     print("Best robot structure found:")
     json_file['best_robot']=best_robot.tolist()
@@ -232,8 +221,11 @@ def run_random_search(seed):
     print("Best fitness score:")
     json_file['best fitness']=best_fitness
     print(best_fitness)
+    print("Best reward score:")
+    json_file['best reward']=best_reward
+    print(best_reward)
 
-    json_file['total_eval']=NUM_GENERATIONS
+    json_file['total_eval']=(NUM_GENERATIONS+1)*POP_SIZE
 
     with open(path+'\\data.json', 'w', encoding='utf-8') as f:
         json.dump(json_file, f, ensure_ascii=False, indent=4)
