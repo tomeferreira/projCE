@@ -18,7 +18,7 @@ SCENARIO = 'DownStepper-v0'
 SEEDS = [68167, 91803, 39233, 58400, 97664]
 
 # Set the number of CPU cores to use for parallel processing
-NUM_CORES = os.cpu_count() - 1
+NUM_CORES = os.cpu_count() - 3
 
 
 def set_seed(seed):
@@ -206,7 +206,7 @@ def genetic_algorithm(
 
         # Evaluate the population
         with ProcessPoolExecutor(max_workers=NUM_CORES) as executor:
-            fitness_scores = np.array(list(executor.map(evaluate_fitness, pop)))
+            fitness_scores = np.array(list(executor.map(evaluate_fitness, new_pop)))
 
         sorted_idx = np.argsort(-fitness_scores)
         fitness_scores = [fitness_scores[i] for i in sorted_idx]
@@ -647,13 +647,8 @@ def run_differential_evolution(seed):
 def main():
     for seed in SEEDS:
         set_seed(seed)
-
-        # This is because we already have the results for the seed 68167
-        # and we don't want to run the algorithms again
-        if seed != 68167:
-            run_random_search(seed)
-            run_genetic_algorithm(seed)
-
+        run_random_search(seed)
+        run_genetic_algorithm(seed)
         run_cma_es(seed)
         run_differential_evolution(seed)
 
