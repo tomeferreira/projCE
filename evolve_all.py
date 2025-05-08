@@ -59,10 +59,9 @@ def create_random_robot():
     return random_robot
 
 
-def create_random_weights(structure):
+def create_random_weights(param_shape):
     """Generate random weights for the neural controller."""
     # ! NOT WORKING
-    param_shape = calculate_param_shapes(structure)
     return [np.random.randn(*shape) for shape in param_shape]
 
 
@@ -78,9 +77,6 @@ def evaluate_fitness(robot_structure, weights, view=False):
 
         input_size = env.observation_space.shape[0]
         output_size = env.action_space.shape[0]
-        expected_input_size, expected_output_size = get_brain_dimensions(weights)
-        if expected_input_size!=input_size or expected_output_size!=output_size:
-            return -10*(np.abs(expected_input_size-input_size)+np.abs(expected_output_size-output_size))
         brain = NeuralController(input_size, output_size)
         set_weights(brain, weights)
 
@@ -185,7 +181,8 @@ def coevolution_v6(pop_struct_sz, pop_brain_sz, nr_gens_struct, nr_gens_brain, m
 
         results = np.zeros((gens, 3))
 
-        pop = [create_random_weights(struct) for _ in range(pop_brain_sz)]
+        param_shape = calculate_param_shapes(struct)
+        pop = [create_random_weights(param_shape) for _ in range(pop_brain_sz)]
         pairings = [(struct,pair) for pair in pop]
 
         # Evaluate the initial population
@@ -239,7 +236,7 @@ def coevolution_v6(pop_struct_sz, pop_brain_sz, nr_gens_struct, nr_gens_brain, m
 
     for i,struct in enumerate(pop_struct):
         print(f"\n\n Robot {str(i)}\n\n")
-        best_weights, best_fitness, results = genetic_algorithm(
+        best_weights, best_fitness, _ = genetic_algorithm(
             struct,
             nr_gens_brain,
             pop_brain_sz,
@@ -267,11 +264,12 @@ def coevolution_v6(pop_struct_sz, pop_brain_sz, nr_gens_struct, nr_gens_brain, m
             new_population_struct.append(child_structure)
         pop_struct = new_population_struct
 
+        pairings = pairings[0:ELITISM_SIZE]
         fitness = fitness[0:ELITISM_SIZE]
 
         for i,struct in enumerate(pop_struct[ELITISM_SIZE:]):
             print(f"\n\n Robot {str(i)}\n\n")
-            best_weights, best_fitness, results = genetic_algorithm(
+            best_weights, best_fitness, _ = genetic_algorithm(
                 struct,
                 nr_gens_brain,
                 pop_brain_sz,
@@ -288,10 +286,12 @@ def coevolution_v6(pop_struct_sz, pop_brain_sz, nr_gens_struct, nr_gens_brain, m
         pop_struct = [pop_struct[i] for i in sorted_idx]
         pairings = [pairings[i] for i in sorted_idx]
 
-        best_fitness_struct = fitness[0]
-        avg_fitness_struct = np.mean(fitness)
+        print(fitness)
+        best_fitness = fitness[0]
+        avg_fitness = np.mean(fitness)
+        print(pairings)
         print(
-            f"Generation {generation + 1}: - Best Fitness = {best_fitness_struct}, Average Fitness = {avg_fitness_struct}")
+            f"Generation {generation + 1}: - Best Fitness = {best_fitness}, Average Fitness = {avg_fitness}")
         
         results[generation] = [generation+1,fitness[0],np.mean(fitness)]
 
@@ -964,13 +964,13 @@ def run_coevolution(seed):
     json_file = dict()
 
     # Parameters
-    pop_size_struct = 12
+    pop_size_struct = 10
     pop_size_brain = 18
-    num_generations_struct = 5
-    num_generations_brain = 10
-    mutation_rate_structure = 0.15
+    num_generations_struct = 8
+    num_generations_brain = 15
+    mutation_rate_structure = 0.1
     mutation_rate_weights = 0.3
-    mutation_strength_weights = 0.02
+    mutation_strength_weights = 0.03
     elitism_size = 2
     tournament_size = 5
 
@@ -1000,11 +1000,6 @@ def run_coevolution(seed):
     json_file['elapsed_time']=elapsed_time
 
     print("Elapsed time: " + str(elapsed_time))
-
-    time_str = str(time.strftime("%Y-%m-%d_%Hh%Mm%Ss"))+"_S"+str(seed)+"_G"+str(NUM_GENERATIONS)
-    path = os.path.join("students","results","ga",time_str)
-
-    os.makedirs(path)
 
     results.to_csv(path+'\\fitness_history.csv',index=False)
 
