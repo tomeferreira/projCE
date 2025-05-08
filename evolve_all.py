@@ -322,7 +322,8 @@ def coevolution_v6(pop_struct_sz, pop_brain_sz, nr_gens_struct, nr_gens_brain, m
 
     return best_robot, best_weights, best_fitness, results
 
-def coevolution_v7(pop_struct_sz, pop_brain_sz, nr_gens_struct, nr_gens_brain, mutation_rate_structure, mutation_rate_weights, mutation_strength_weights, elitism_sz, tournament_sz):
+
+def coevolution_cma(pop_struct_sz, pop_brain_sz, nr_gens_struct, nr_gens_brain, mutation_rate_structure, tournament_sz):
     """Run the coevolutionary algorithm."""
     def mutate_structure(robot_structure, mutation_rate):
         """Mutate the robot structure."""
@@ -423,7 +424,7 @@ def coevolution_v7(pop_struct_sz, pop_brain_sz, nr_gens_struct, nr_gens_brain, m
 
     for i, struct in enumerate(pop_struct):
         print(f"\n\n Robot {str(i)}\n\n")
-        best_weights, best_fitness, results = controller_cma(struct)
+        best_weights, best_fitness, results = controller_cma(struct, nr_gens_brain)
         pairings.append((struct, best_weights))
         fitness.append(best_fitness)
     sorted_idx = np.argsort(-np.array(fitness))
@@ -446,7 +447,7 @@ def coevolution_v7(pop_struct_sz, pop_brain_sz, nr_gens_struct, nr_gens_brain, m
 
         for i, struct in enumerate(pop_struct[ELITISM_SIZE:]):
             print(f"\n\n Robot {str(i)}\n\n")
-            best_weights, best_fitness, results = controller_cma(struct)
+            best_weights, best_fitness, results = controller_cma(struct, nr_gens_brain)
             pairings.append((struct, best_weights))
             fitness.append(best_fitness)
         sorted_idx = np.argsort(-np.array(fitness))
@@ -1143,7 +1144,7 @@ def run_coevolution(seed):
     print('Starting Coevolution...')
     start_time = time.time()
 
-    best_robot, best_weights, best_fitness, results = coevolution_v7(
+    best_robot, best_weights, best_fitness, results = coevolution_v6(
         pop_size_struct,
         pop_size_brain,
         num_generations_struct,
@@ -1161,6 +1162,77 @@ def run_coevolution(seed):
 
     time_str = f'{time.strftime("%Y-%m-%d_%Hh%Mm%Ss")}_S{seed}'
     path = os.path.join('students', 'results', 'all', 'coevolution', time_str)
+    os.makedirs(path)
+
+    json_file['elapsed_time'] = elapsed_time
+
+    print("Elapsed time: " + str(elapsed_time))
+
+    time_str = str(time.strftime("%Y-%m-%d_%Hh%Mm%Ss"))+"_S"+str(seed)+"_G"+str(NUM_GENERATIONS)
+    path = os.path.join("students", "results", "ga", time_str)
+
+    os.makedirs(path)
+
+    results.to_csv(path+'\\fitness_history.csv', index=False)
+
+    print("Best robot structure found:")
+    json_file['best_robot'] = best_robot.tolist()
+    print(best_robot)
+    print("Best fitness score:")
+    json_file['best fitness'] = best_fitness
+    print(best_fitness)
+
+    json_file['total_eval'] = NUM_GENERATIONS*10*100
+
+    with open(path+'\\data.json', 'w', encoding='utf-8') as f:
+        json.dump(json_file, f, ensure_ascii=False, indent=4)
+
+    connectivity = get_full_connectivity(best_robot)
+    env = gym.make(SCENARIO, max_episode_steps=STEPS,
+                   body=best_robot, connections=connectivity)
+    input_size = env.observation_space.shape[0]
+    output_size = env.action_space.shape[0]
+    brain = NeuralController(input_size, output_size)
+    set_weights(brain, best_weights)
+    create_gif_brain(
+        best_robot,
+        brain,
+        filename=f'{path}\\best_robot.gif',
+        scenario=SCENARIO,
+        steps=STEPS,)
+
+    return
+
+
+def run_coevolution_cma(seed):
+    json_file = dict()
+
+    # Parameters
+    pop_size_struct = 10
+    pop_size_brain = 18
+    num_generations_struct = 8
+    num_generations_brain = 15
+    mutation_rate_structure = 0.1
+    tournament_size = 5
+
+    print('Starting CMA Coevolution...')
+    start_time = time.time()
+
+    best_robot, best_weights, best_fitness, results = coevolution_cma(
+        pop_size_struct,
+        pop_size_brain,
+        num_generations_struct,
+        num_generations_brain,
+        mutation_rate_structure,
+        tournament_size,
+    )
+
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+    print(f"Elapsed time: {elapsed_time} seconds")
+
+    time_str = f'{time.strftime("%Y-%m-%d_%Hh%Mm%Ss")}_S{seed}'
+    path = os.path.join('students', 'results', 'all', 'cma_coevolution', time_str)
     os.makedirs(path)
 
     json_file['elapsed_time'] = elapsed_time
