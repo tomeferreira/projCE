@@ -3,7 +3,7 @@ import scipy.stats as st
 import os
 import numpy as np
 
-def load_data(path):
+def load_data(path, ranking_method='best reward'):
 	bests = []
 
 	dir_list = os.listdir(path)
@@ -11,7 +11,7 @@ def load_data(path):
 		file_path = os.path.join(path, dir, 'data.json')
 		with open(file_path, 'r') as f:
 			data = json.load(f)
-			bests.append(data['best reward'])
+			bests.append(data[ranking_method])
 		
 	return sorted(bests)
 
@@ -120,12 +120,67 @@ def test_3_1_Walker_different_controller():
 
 	return
 
+def test_3_2_walker():
+    # Load data for each algorithm
+    best_random = load_data('results/controller/first_map/random', ranking_method='best fitness')
+    best_ga = load_data('results/controller/first_map/ga', ranking_method='best fitness')
+    best_cma = load_data('results/controller/first_map/cma', ranking_method='best fitness')
+    best_de = load_data('results/controller/first_map/de', ranking_method='best fitness')
+
+    # Print the loaded data
+    print("Random Search:", best_random)
+    print("Genetic Algorithm:", best_ga)
+    print("CMA-ES:", best_cma)
+    print("Differential Evolution:", best_de)
+
+    # Test Normality
+    print('\nNormality testing w\\Shapiro-Wilk')
+    print(f'Random Search: {test_normal_sw(best_random)}')
+    print(f'Genetic Algorithm: {test_normal_sw(best_ga)}')
+    print(f'CMA-ES: {test_normal_sw(best_cma)}')
+    print(f'Differential Evolution: {test_normal_sw(best_de)}')
+
+    # Kruskal-Wallis test for overall difference
+    print(f'\nKruskal Wallis test: {kruskal_wallis((best_random, best_ga, best_cma, best_de))}')
+
+    # Pairwise comparisons using Mann-Whitney U test
+    print('\nPairwise Comparisons:')
+    print(f'Random Search vs Genetic Algorithm: {mann_whitney(best_random, best_ga)}')
+    print(f'Random Search vs CMA-ES: {mann_whitney(best_random, best_cma)}')
+    print(f'Random Search vs Differential Evolution: {mann_whitney(best_random, best_de)}')
+    
+    print(f'Genetic Algorithm vs CMA-ES: {mann_whitney(best_ga, best_cma)}')
+    print(f'Genetic Algorithm vs Differential Evolution: {mann_whitney(best_ga, best_de)}')
+    
+    print(f'CMA-ES vs Differential Evolution: {mann_whitney(best_cma, best_de)}')
+
+    # Print mean values to determine which is better
+    print('\nMean Performance:')
+    print(f'Random Search: {np.mean(best_random)}')
+    print(f'Genetic Algorithm: {np.mean(best_ga)}')
+    print(f'CMA-ES: {np.mean(best_cma)}')
+    print(f'Differential Evolution: {np.mean(best_de)}')
+
+    # Find and print the best algorithm
+    means = [
+        ("Random Search", np.mean(best_random)),
+        ("Genetic Algorithm", np.mean(best_ga)),
+        ("CMA-ES", np.mean(best_cma)),
+        ("Differential Evolution", np.mean(best_de))
+    ]
+    best_algo = max(means, key=lambda x: x[1])
+    print(f'\nBest performing algorithm: {best_algo[0]} with mean fitness {best_algo[1]:.4f}')
+	
+
+
 def main():
 
-	test_3_1_Walker_same_controller()
+	#test_3_1_Walker_same_controller()
 
-	test_3_1_Walker_different_controller()
+	#test_3_1_Walker_different_controller()
 	
+	test_3_2_walker()
+
 	return
 
 if __name__ == '__main__':
