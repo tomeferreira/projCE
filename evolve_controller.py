@@ -15,7 +15,7 @@ from concurrent.futures import ProcessPoolExecutor
 NUM_GENERATIONS = 250
 STEPS = 500
 SCENARIO = 'DownStepper-v0'
-SEEDS = [68167, 91803, 39233, 58400, 97664]
+SEEDS = [39233, 58400, 97664]
 
 # Set the number of CPU cores to use for parallel processing
 NUM_CORES = os.cpu_count() - 3
@@ -329,30 +329,32 @@ def differential_evolution(
         new_pop = copy.deepcopy(pop)
         new_fitnesses = copy.deepcopy(fitnesses)
 
-        for _ in range(pop_sz):
+        # Create all trial vectors first and keep track of their target indices
+        trial_vectors = []
+        target_indices = []
+        target_fitness = []
+
+        for i in range(pop_sz):
             scale = calculate_scale(gen)
-            # Choose the base vector, and vectors used to calculate the differential vectors
-            # The base (or target, as called in the slides) vector is the first one from the chosen ones
             chosen_idxs = choose_base_vector()
-
-            # Flatten the weights of the chosen individuals for easier manipulation
             chosen_flat = [flatten_weights(pop[i]) for i in chosen_idxs]
-
-            # 2. Create mutant (or variant, as called in the slides) vector by combining weighted differences of solutions
             mutant = mutate(chosen_flat, scale)
-
-            # 3. Mix mutant vector with base vector to create trial solutions
             trial = crossover(chosen_flat[0], mutant)
 
-            # 4. Choose the better solution between the base and trial vectors
-            target_r = fitnesses[chosen_idxs[0]]
-            # Unflatten the trial vector to evaluate fitness
-            trial = unflatten_weights(trial, original_shape)
-            trial_r = evaluate_fitness(trial)
+            # Store trial vector, target index, and target fitness
+            trial_vectors.append(unflatten_weights(trial, original_shape))
+            target_indices.append(chosen_idxs[0])
+            target_fitness.append(fitnesses[chosen_idxs[0]])
 
+        # Evaluate all trial vectors in parallel
+        with ProcessPoolExecutor(max_workers=NUM_CORES) as executor:
+            trial_fitness_results = list(executor.map(evaluate_fitness, trial_vectors))
+
+        # Update population based on fitness comparisons
+        for i, (trial_r, target_idx, target_r) in enumerate(zip(trial_fitness_results, target_indices, target_fitness)):
             if trial_r > target_r:
-                new_pop[chosen_idxs[0]] = trial
-                new_fitnesses[chosen_idxs[0]] = trial_r
+                new_pop[target_idx] = trial_vectors[i]
+                new_fitnesses[target_idx] = trial_r
 
         pop = copy.deepcopy(new_pop)
         fitnesses = copy.deepcopy(new_fitnesses)
@@ -365,6 +367,7 @@ def differential_evolution(
         )
         results[gen] = [gen + 1, fitnesses[best_fit_idx], mean_fitness]
 
+    best_fit_idx = np.argmax(fitnesses)
     return pop[best_fit_idx], fitnesses[best_fit_idx], results
 
 
@@ -421,11 +424,11 @@ def run_random_search(seed):
 def run_genetic_algorithm(seed):
     # Parameters
     population_size = 50
-    mutation_strenght = 0.02
-    mutation_rate = 0.05
-    k_points = 2
-    tournament_size = 5
-    elite_size = 2
+    mutation_strenght = 0.05
+    mutation_rate = 0.1
+    k_points = 3
+    tournament_size = 4
+    elite_size = 3
 
     print('Starting Genetic Algorithm...')
     start_time = time.time()
@@ -488,7 +491,7 @@ def run_genetic_algorithm(seed):
 def run_cma_es(seed):
     # Parameters
     population_size = 50
-    sigma = 1.3
+    sigma = 0.5
 
     param_shape = [param.shape for param in brain.parameters()]
     dim = sum(np.prod(shape) for shape in param_shape)  # Flattened dimension
@@ -580,9 +583,9 @@ def run_cma_es(seed):
 def run_differential_evolution(seed):
     # Parameters
     population_size = 50
-    base_vector_type = 'random'  # 'random' or 'best'
-    nr_diff_vectors = 1
-    scale_factor = 'random'  # 'random' or 'linear'
+    base_vector_type = 'best'  # 'random' or 'best'
+    nr_diff_vectors = 2
+    scale_factor = 'linear'  # 'random' or 'linear'
     scale_max = 1
     scale_min = 0.5
 
@@ -647,9 +650,9 @@ def run_differential_evolution(seed):
 def main():
     for seed in SEEDS:
         set_seed(seed)
-        run_random_search(seed)
-        run_genetic_algorithm(seed)
-        run_cma_es(seed)
+        # run_random_search(seed)
+        # run_genetic_algorithm(seed)
+        # run_cma_es(seed)
         run_differential_evolution(seed)
 
     return
