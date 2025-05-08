@@ -1,4 +1,6 @@
 from concurrent.futures import ProcessPoolExecutor
+from cmaes import CMA
+from functools import partial
 import numpy as np
 import random
 import copy
@@ -24,8 +26,9 @@ SEEDS = [68167, 91803, 39233, 58400, 97664]
 VOXEL_TYPES = [0, 1, 2, 3, 4]  # Empty, Rigid, Soft, Active (+/-)
 MIN_GRID_SIZE = (5, 5)
 MAX_GRID_SIZE = (5, 5)
-MAX_INPUT = 72 #78
-MAX_OUTPUT = 10 #11
+MAX_INPUT = 72  # 78
+MAX_OUTPUT = 10  # 11
+
 
 def set_seed(seed):
     random.seed(seed)
@@ -34,10 +37,25 @@ def set_seed(seed):
     print("Seed set")
     return
 
+
+def unflatten_weights(weights, original_shape):
+    """
+    Unflatten the weights back to their original shape.
+    """
+    start = 0
+    unflattened_weights = []
+    for shape in original_shape:
+        size = np.prod(shape)
+        unflattened_weights.append(np.array(weights[start:start + size]).reshape(shape))
+        start += size
+    return unflattened_weights
+
+
 def get_brain_dimensions(weights):
     input_size = weights[0].shape[1]
     output_size = weights[-1].shape[0]
     return input_size, output_size
+
 
 def calculate_param_shapes(structure):
     """Calculate the shapes of the parameters of the neural controller for a given structure."""
@@ -79,7 +97,7 @@ def evaluate_fitness(robot_structure, weights, view=False):
         input_size = env.observation_space.shape[0]
         output_size = env.action_space.shape[0]
         expected_input_size, expected_output_size = get_brain_dimensions(weights)
-        if expected_input_size!=input_size or expected_output_size!=output_size:
+        if expected_input_size != input_size or expected_output_size != output_size:
             return -10*(np.abs(expected_input_size-input_size)+np.abs(expected_output_size-output_size))
         brain = NeuralController(input_size, output_size)
         set_weights(brain, weights)
@@ -105,6 +123,7 @@ def evaluate_fitness(robot_structure, weights, view=False):
     except (ValueError, IndexError) as e:
         return 0.0
 
+
 def coevolution_v6(pop_struct_sz, pop_brain_sz, nr_gens_struct, nr_gens_brain, mutation_rate_structure, mutation_rate_weights, mutation_strength_weights, elitism_sz, tournament_sz):
     """Run the coevolutionary algorithm."""
     def mutate_structure(robot_structure, mutation_rate):
@@ -122,7 +141,7 @@ def coevolution_v6(pop_struct_sz, pop_brain_sz, nr_gens_struct, nr_gens_brain, m
                         mutated[i][j] = random.choice(VOXEL_TYPES)
         return mutated
 
-    def crossover_structure(parent1,parent2):
+    def crossover_structure(parent1, parent2):
         # Flatten parents to 1D arrays
         parent1_flat = copy.deepcopy(parent1).flatten()
         parent2_flat = copy.deepcopy(parent2).flatten()
@@ -131,26 +150,26 @@ def coevolution_v6(pop_struct_sz, pop_brain_sz, nr_gens_struct, nr_gens_brain, m
         child_flat = np.where(mask == 1, parent1_flat, parent2_flat)
 
         i = 1
-        while not is_connected(child_flat.reshape((5,5))):
-            #print("Wasn't Connected Crossover")
-            if i>5:
+        while not is_connected(child_flat.reshape((5, 5))):
+            # print("Wasn't Connected Crossover")
+            if i > 5:
                 child_flat = create_random_robot()
                 break
             mask = np.random.randint(0, 2, size=25)
             child_flat = np.where(mask == 1, parent1_flat, parent2_flat)
-            i+=1
+            i += 1
 
         # Reshape back to (5,5)
-        child = child_flat.reshape((5,5))
+        child = child_flat.reshape((5, 5))
 
         return child
-    
+
     def tournament_selection(pop, fitness_scores, k):
         """Select two parents using tournament selection."""
         indices = np.random.choice(len(pop), k, replace=False)
         sorted_indices = sorted(indices, key=lambda idx: fitness_scores[idx], reverse=True)
         return pop[sorted_indices[0]], pop[sorted_indices[1]]
-    
+
     def genetic_algorithm(
         struct,
         gens=10,
@@ -186,7 +205,7 @@ def coevolution_v6(pop_struct_sz, pop_brain_sz, nr_gens_struct, nr_gens_brain, m
         results = np.zeros((gens, 3))
 
         pop = [create_random_weights(struct) for _ in range(pop_brain_sz)]
-        pairings = [(struct,pair) for pair in pop]
+        pairings = [(struct, pair) for pair in pop]
 
         # Evaluate the initial population
         with ProcessPoolExecutor(max_workers=NUM_CORES) as executor:
@@ -222,8 +241,7 @@ def coevolution_v6(pop_struct_sz, pop_brain_sz, nr_gens_struct, nr_gens_brain, m
             pop = [new_pop[i] for i in sorted_idx]
             mean_fitness = np.mean(fitness_scores)
             print(
-                f'Generation {generation + 1}/{gens}: Best Fitness: {fitness_scores[0]:.4f}, Average Fitness: {mean_fitness:.4f}'
-            )
+                f'Generation {generation + 1}/{gens}: Best Fitness: {fitness_scores[0]:.4f}, Average Fitness: {mean_fitness:.4f}')
             results[generation] = [generation + 1, fitness_scores[0], mean_fitness]
 
         best_weights = pop[0]
@@ -231,13 +249,13 @@ def coevolution_v6(pop_struct_sz, pop_brain_sz, nr_gens_struct, nr_gens_brain, m
 
         return best_weights, best_fitness, results
 
-    results = np.zeros((nr_gens_struct,3))
+    results = np.zeros((nr_gens_struct, 3))
 
     pop_struct = [create_random_robot() for _ in range(pop_struct_sz)]
     pairings = []
     fitness = []
 
-    for i,struct in enumerate(pop_struct):
+    for i, struct in enumerate(pop_struct):
         print(f"\n\n Robot {str(i)}\n\n")
         best_weights, best_fitness, results = genetic_algorithm(
             struct,
@@ -249,7 +267,7 @@ def coevolution_v6(pop_struct_sz, pop_brain_sz, nr_gens_struct, nr_gens_brain, m
             tournament_sz,
             elitism_sz,
         )
-        pairings.append((struct,best_weights))
+        pairings.append((struct, best_weights))
         fitness.append(best_fitness)
     sorted_idx = np.argsort(-np.array(fitness))
     pop_struct = [pop_struct[i] for i in sorted_idx]
@@ -269,7 +287,7 @@ def coevolution_v6(pop_struct_sz, pop_brain_sz, nr_gens_struct, nr_gens_brain, m
 
         fitness = fitness[0:ELITISM_SIZE]
 
-        for i,struct in enumerate(pop_struct[ELITISM_SIZE:]):
+        for i, struct in enumerate(pop_struct[ELITISM_SIZE:]):
             print(f"\n\n Robot {str(i)}\n\n")
             best_weights, best_fitness, results = genetic_algorithm(
                 struct,
@@ -281,7 +299,7 @@ def coevolution_v6(pop_struct_sz, pop_brain_sz, nr_gens_struct, nr_gens_brain, m
                 tournament_sz,
                 elitism_sz,
             )
-            pairings.append((struct,best_weights))
+            pairings.append((struct, best_weights))
             fitness.append(best_fitness)
         sorted_idx = np.argsort(-np.array(fitness))
         fitness = [fitness[i] for i in sorted_idx]
@@ -292,17 +310,167 @@ def coevolution_v6(pop_struct_sz, pop_brain_sz, nr_gens_struct, nr_gens_brain, m
         avg_fitness_struct = np.mean(fitness)
         print(
             f"Generation {generation + 1}: - Best Fitness = {best_fitness_struct}, Average Fitness = {avg_fitness_struct}")
-        
-        results[generation] = [generation+1,fitness[0],np.mean(fitness)]
+
+        results[generation] = [generation+1, fitness[0], np.mean(fitness)]
 
     best_robot = pairings[0][0]
     best_weights = pairings[0][1]
     best_fitness = fitness[0]
 
-    results = pd.DataFrame(results,columns=['Iteration','Best Reward','Mean Reward'])
+    results = pd.DataFrame(results, columns=['Iteration', 'Best Reward', 'Mean Reward'])
     results['Iteration'] = results['Iteration'].astype('int32')
 
     return best_robot, best_weights, best_fitness, results
+
+
+def coevolution_v7(pop_struct_sz, pop_brain_sz, nr_gens_struct, nr_gens_brain, mutation_rate_structure, mutation_rate_weights, mutation_strength_weights, elitism_sz, tournament_sz):
+    """Run the coevolutionary algorithm."""
+    def mutate_structure(robot_structure, mutation_rate):
+        """Mutate the robot structure."""
+        mutated = copy.deepcopy(robot_structure)
+        for i in range(mutated.shape[0]):
+            for j in range(mutated.shape[1]):
+                if random.random() < mutation_rate:
+                    mutated[i][j] = random.choice(VOXEL_TYPES)
+        while not is_connected(mutated):
+            mutated = copy.deepcopy(robot_structure)
+            for i in range(mutated.shape[0]):
+                for j in range(mutated.shape[1]):
+                    if random.random() < mutation_rate:
+                        mutated[i][j] = random.choice(VOXEL_TYPES)
+        return mutated
+
+    def crossover_structure(parent1, parent2):
+        # Flatten parents to 1D arrays
+        parent1_flat = copy.deepcopy(parent1).flatten()
+        parent2_flat = copy.deepcopy(parent2).flatten()
+
+        mask = np.random.randint(0, 2, size=25)
+        child_flat = np.where(mask == 1, parent1_flat, parent2_flat)
+
+        i = 1
+        while not is_connected(child_flat.reshape((5, 5))):
+            # print("Wasn't Connected Crossover")
+            if i > 5:
+                child_flat = create_random_robot()
+                break
+            mask = np.random.randint(0, 2, size=25)
+            child_flat = np.where(mask == 1, parent1_flat, parent2_flat)
+            i += 1
+
+        # Reshape back to (5,5)
+        child = child_flat.reshape((5, 5))
+
+        return child
+
+    def tournament_selection(pop, fitness_scores, k):
+        """Select two parents using tournament selection."""
+        indices = np.random.choice(len(pop), k, replace=False)
+        sorted_indices = sorted(indices, key=lambda idx: fitness_scores[idx], reverse=True)
+        return pop[sorted_indices[0]], pop[sorted_indices[1]]
+
+    def controller_cma(struct, gens=10):
+        param_shape = calculate_param_shapes(struct)
+        dim = sum(np.prod(shape) for shape in param_shape)  # Flattened dimension
+        optimizer = CMA(mean=np.zeros(dim), sigma=1.5, population_size=pop_brain_sz)
+
+        # To store generation, best fitness, and average fitness
+        results = np.zeros((gens, 3))
+
+        best_solution = None
+        best_fitness = -np.inf  # Initialize with a very low fitness value
+
+        for generation in range(gens):
+            solutions = []
+            fitness_scores = []
+
+            # Generate solutions
+            flat_weights_list = [optimizer.ask() for _ in range(optimizer.population_size)]
+
+            pairings = [(struct, unflatten_weights(w, param_shape)) for w in flat_weights_list]
+
+            # Evaluate solutions
+            with ProcessPoolExecutor(max_workers=NUM_CORES) as executor:
+                fitness_results = np.array(list(executor.map(evaluate_fitness, *zip(*pairings))))
+
+            # Process the results
+            for flat_weights, fitness in zip(flat_weights_list, fitness_results):
+                # Negate fitness for minimization
+                solutions.append((flat_weights, -fitness))
+                fitness_scores.append(fitness)
+
+                # Update the best solution if a better one is found
+                if fitness > best_fitness:
+                    best_fitness = fitness
+                    best_solution = flat_weights
+
+            # Update the optimizer with the evaluated solutions
+            optimizer.tell(solutions)
+
+            # Logging
+            avg_fitness = np.mean(fitness_scores)
+            print(
+                f"Generation {generation + 1}/{gens}: Best Fitness = {best_fitness:.4f}, Average Fitness = {avg_fitness:.4f}")
+            results[generation] = [generation + 1, best_fitness, avg_fitness]
+
+        best_weights = unflatten_weights(best_solution, param_shape)
+        return best_weights, best_fitness, results
+
+    results = np.zeros((nr_gens_struct, 3))
+
+    pop_struct = [create_random_robot() for _ in range(pop_struct_sz)]
+    pairings = []
+    fitness = []
+
+    for i, struct in enumerate(pop_struct):
+        print(f"\n\n Robot {str(i)}\n\n")
+        best_weights, best_fitness, results = controller_cma(struct)
+        pairings.append((struct, best_weights))
+        fitness.append(best_fitness)
+    sorted_idx = np.argsort(-np.array(fitness))
+    pop_struct = [pop_struct[i] for i in sorted_idx]
+    pairings = [pairings[i] for i in sorted_idx]
+
+    for generation in range(nr_gens_struct):
+        # Elitism
+        new_population_struct = list(copy.deepcopy(pop_struct[0:ELITISM_SIZE]))
+
+        # Generate new population struct
+        while len(new_population_struct) < pop_struct_sz:
+            parent1, parent2 = tournament_selection(pop_struct, fitness, tournament_sz)
+            child_structure = crossover_structure(parent1, parent2)
+            child_structure = mutate_structure(child_structure, mutation_rate_structure)
+            new_population_struct.append(child_structure)
+        pop_struct = new_population_struct
+
+        fitness = fitness[0:ELITISM_SIZE]
+
+        for i, struct in enumerate(pop_struct[ELITISM_SIZE:]):
+            print(f"\n\n Robot {str(i)}\n\n")
+            best_weights, best_fitness, results = controller_cma(struct)
+            pairings.append((struct, best_weights))
+            fitness.append(best_fitness)
+        sorted_idx = np.argsort(-np.array(fitness))
+        fitness = [fitness[i] for i in sorted_idx]
+        pop_struct = [pop_struct[i] for i in sorted_idx]
+        pairings = [pairings[i] for i in sorted_idx]
+
+        best_fitness_struct = fitness[0]
+        avg_fitness_struct = np.mean(fitness)
+        print(
+            f"Generation {generation + 1}: - Best Fitness = {best_fitness_struct}, Average Fitness = {avg_fitness_struct}")
+
+        results[generation] = [generation+1, fitness[0], np.mean(fitness)]
+
+    best_robot = pairings[0][0]
+    best_weights = pairings[0][1]
+    best_fitness = fitness[0]
+
+    results = pd.DataFrame(results, columns=['Iteration', 'Best Reward', 'Mean Reward'])
+    results['Iteration'] = results['Iteration'].astype('int32')
+
+    return best_robot, best_weights, best_fitness, results
+
 
 # def coevolution_v5(pop_struct_sz, pop_brain_sz, nr_gens, mutation_rate_structure, mutation_rate_weights, elitism_sz, tournament_sz):
 #     """Run the coevolutionary algorithm."""
@@ -371,7 +539,7 @@ def coevolution_v6(pop_struct_sz, pop_brain_sz, nr_gens_struct, nr_gens_brain, m
 #     def random_paring(pop_s,pop_b):
 #         fitness_w1 = []
 #         pairings = []
-        
+
 #         # Evaluation of pop_w1
 #         for w1 in pop_s:
 #             indices = np.random.choice(len(pop_b),size=3,replace=False) # choose randomly the partner
@@ -413,7 +581,7 @@ def coevolution_v6(pop_struct_sz, pop_brain_sz, nr_gens_struct, nr_gens_brain, m
 
 #         with ProcessPoolExecutor(max_workers=NUM_CORES) as executor:
 #             fitness_w2 = np.array(list(executor.map(evaluate_fitness, *zip(*pairings))))
-        
+
 #         fitness_w2 = fitness_w2.reshape(len(pop_b), 3).mean(axis=1)
 
 #         return fitness_w1,fitness_w2
@@ -465,7 +633,7 @@ def coevolution_v6(pop_struct_sz, pop_brain_sz, nr_gens_struct, nr_gens_brain, m
 #         avg_fitness_brain = np.mean(fitness_scores_brain)
 #         print(
 #             f"Generation {generation + 1}: Brain - Best Fitness = {best_fitness_brain}, Average Fitness = {avg_fitness_brain}")
-        
+
 #         results[generation] = [generation+1,fitness_scores_struct[0],np.mean(fitness_scores_struct),fitness_scores_brain[0],np.mean(fitness_scores_brain)]
 
 #     final_pairings = []
@@ -553,7 +721,7 @@ def coevolution_v6(pop_struct_sz, pop_brain_sz, nr_gens_struct, nr_gens_brain, m
 #     def random_paring(pop_s,pop_b):
 #         fitness_w1 = []
 #         pairings = []
-        
+
 #         # Evaluation of pop_w1
 #         for w1 in pop_s:
 #             partner = random.choice(pop_b) # choose randomly the partner
@@ -575,7 +743,7 @@ def coevolution_v6(pop_struct_sz, pop_brain_sz, nr_gens_struct, nr_gens_brain, m
 
 #     def best_so_far_paring_individual(pop_s,pop_b,eval_pop_1=True):
 #         pairings = []
-        
+
 #         if eval_pop_1:
 #             for w1 in pop_s:
 #                 partners = pop_b[0:3]
@@ -592,7 +760,7 @@ def coevolution_v6(pop_struct_sz, pop_brain_sz, nr_gens_struct, nr_gens_brain, m
 #             with ProcessPoolExecutor(max_workers=NUM_CORES) as executor:
 #                 fitness = np.array(list(executor.map(evaluate_fitness, *zip(*pairings))))
 #             fitness = fitness.reshape(len(pop_b), 3).mean(axis=1)
-    
+
 #         return fitness
 
 #     results = np.zeros((nr_gens+1,5))
@@ -630,7 +798,7 @@ def coevolution_v6(pop_struct_sz, pop_brain_sz, nr_gens_struct, nr_gens_brain, m
 #             child_weights = crossover_weights(parent1, parent2)
 #             child_weights = mutate_weights(child_weights, mutation_rate_weights)
 #             new_population_brain.append(child_weights)
-        
+
 #         fitness_scores_brain_temp = best_so_far_paring_individual(pop_struct,new_population_brain,eval_pop_1=False)
 
 #         fitness_scores_struct = fitness_scores_struct_temp
@@ -646,7 +814,7 @@ def coevolution_v6(pop_struct_sz, pop_brain_sz, nr_gens_struct, nr_gens_brain, m
 #         avg_fitness_brain = np.mean(fitness_scores_brain)
 #         print(
 #             f"Generation {generation + 1}: Brain - Best Fitness = {best_fitness_brain}, Average Fitness = {avg_fitness_brain}")
-        
+
 #         results[generation] = [generation+1,fitness_scores_struct[0],np.mean(fitness_scores_struct),fitness_scores_brain[0],np.mean(fitness_scores_brain)]
 
 #     final_pairings = []
@@ -734,7 +902,7 @@ def coevolution_v6(pop_struct_sz, pop_brain_sz, nr_gens_struct, nr_gens_brain, m
 #     def random_paring(pop_s,pop_b):
 #         fitness_w1 = []
 #         pairings = []
-        
+
 #         # Evaluation of pop_w1
 #         for w1 in pop_s:
 #             partner = random.choice(pop_b) # choose randomly the partner
@@ -751,7 +919,7 @@ def coevolution_v6(pop_struct_sz, pop_brain_sz, nr_gens_struct, nr_gens_brain, m
 #             pairings.append((partner,w2))
 #         with ProcessPoolExecutor(max_workers=NUM_CORES) as executor:
 #             fitness_w2 = np.array(list(executor.map(evaluate_fitness, *zip(*pairings))))
-        
+
 #         return fitness_w1,fitness_w2
 
 #     def roulette_wheel_individual(pop_s, pop_b, fitness_pop_not_evaled, eval_pop_1=True):
@@ -788,7 +956,7 @@ def coevolution_v6(pop_struct_sz, pop_brain_sz, nr_gens_struct, nr_gens_brain, m
 
 #     def best_so_far_paring_individual(pop_s,pop_b,eval_pop_1=True):
 #         pairings = []
-        
+
 #         if eval_pop_1:
 #             for w1 in pop_s:
 #                 partner = pop_b[0]
@@ -801,8 +969,8 @@ def coevolution_v6(pop_struct_sz, pop_brain_sz, nr_gens_struct, nr_gens_brain, m
 #                 pairings.append((partner,w2))
 #             with ProcessPoolExecutor(max_workers=NUM_CORES) as executor:
 #                 fitness = np.array(list(executor.map(evaluate_fitness, *zip(*pairings))))
-                
-        
+
+
 #         return fitness
 
 #     results = np.zeros((nr_gens+1,5))
@@ -855,7 +1023,7 @@ def coevolution_v6(pop_struct_sz, pop_brain_sz, nr_gens_struct, nr_gens_brain, m
 #         avg_fitness_brain = np.mean(fitness_scores_brain)
 #         print(
 #             f"Generation {generation + 1}: Brain - Best Fitness = {best_fitness_brain}, Average Fitness = {avg_fitness_brain}")
-        
+
 #         results[generation] = [generation+1,fitness_scores_struct[0],np.mean(fitness_scores_struct),fitness_scores_brain[0],np.mean(fitness_scores_brain)]
 
 #     final_pairings = []
@@ -994,28 +1162,28 @@ def run_coevolution(seed):
     print(f"Elapsed time: {elapsed_time} seconds")
 
     time_str = f'{time.strftime("%Y-%m-%d_%Hh%Mm%Ss")}_S{seed}'
-    path = os.path.join('students','results', 'all', 'coevolution', time_str)
+    path = os.path.join('students', 'results', 'all', 'coevolution', time_str)
     os.makedirs(path)
 
-    json_file['elapsed_time']=elapsed_time
+    json_file['elapsed_time'] = elapsed_time
 
     print("Elapsed time: " + str(elapsed_time))
 
     time_str = str(time.strftime("%Y-%m-%d_%Hh%Mm%Ss"))+"_S"+str(seed)+"_G"+str(NUM_GENERATIONS)
-    path = os.path.join("students","results","ga",time_str)
+    path = os.path.join("students", "results", "ga", time_str)
 
     os.makedirs(path)
 
-    results.to_csv(path+'\\fitness_history.csv',index=False)
+    results.to_csv(path+'\\fitness_history.csv', index=False)
 
     print("Best robot structure found:")
-    json_file['best_robot']=best_robot.tolist()
+    json_file['best_robot'] = best_robot.tolist()
     print(best_robot)
     print("Best fitness score:")
-    json_file['best fitness']=best_fitness
+    json_file['best fitness'] = best_fitness
     print(best_fitness)
 
-    json_file['total_eval']=NUM_GENERATIONS*10*100
+    json_file['total_eval'] = NUM_GENERATIONS*10*100
 
     with open(path+'\\data.json', 'w', encoding='utf-8') as f:
         json.dump(json_file, f, ensure_ascii=False, indent=4)
@@ -1026,7 +1194,7 @@ def run_coevolution(seed):
     input_size = env.observation_space.shape[0]
     output_size = env.action_space.shape[0]
     brain = NeuralController(input_size, output_size)
-    set_weights(brain,best_weights)
+    set_weights(brain, best_weights)
     create_gif_brain(
         best_robot,
         brain,
