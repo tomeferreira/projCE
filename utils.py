@@ -101,7 +101,3 @@ def create_gif_brain(robot_structure, brain, filename='best_robot.gif', duration
         imageio.mimsave(filename, frames, duration=duration, optimize=True)
     except ValueError as e:
         print('Invalid')
-        
-
-
-    
