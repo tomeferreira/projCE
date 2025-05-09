@@ -15,7 +15,7 @@ from concurrent.futures import ProcessPoolExecutor
 NUM_GENERATIONS = 250
 STEPS = 500
 SCENARIO = 'DownStepper-v0'
-SEEDS = [39233, 58400, 97664]
+SEEDS = [68167, 91803, 39233, 58400, 97664]
 
 # Set the number of CPU cores to use for parallel processing
 NUM_CORES = os.cpu_count() - 3
@@ -426,7 +426,7 @@ def run_genetic_algorithm(seed):
     population_size = 50
     mutation_strenght = 0.05
     mutation_rate = 0.1
-    k_points = 3
+    k_points = 2
     tournament_size = 4
     elite_size = 3
 
@@ -651,8 +651,8 @@ def main():
     for seed in SEEDS:
         set_seed(seed)
         # run_random_search(seed)
-        # run_genetic_algorithm(seed)
-        # run_cma_es(seed)
+        run_genetic_algorithm(seed)
+        run_cma_es(seed)
         run_differential_evolution(seed)
 
     return

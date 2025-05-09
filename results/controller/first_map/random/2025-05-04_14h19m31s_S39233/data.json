@@ -1,0 +1,11 @@
+{
+    "algorithm": "cma-es",
+    "scenario": "DownStepper-v0",
+    "seed": 39233,
+    "population_size": 50,
+    "generations": 250,
+    "steps": 500,
+    "elapsed_time": 2716.2759420871735,
+    "best fitness": 2.019574,
+    "total_eval": 12500
+}
