@@ -17,8 +17,7 @@ import json
 import pandas as pd
 
 # ---- PARAMETERS ----
-NUM_CORES = 11
-NUM_GENERATIONS = 50
+NUM_CORES = 10
 ELITISM_SIZE = 2
 STEPS = 500
 SCENARIO = 'GapJumper-v0'
@@ -198,8 +197,6 @@ def coevolution_v6(pop_struct_sz, pop_brain_sz, nr_gens_struct, nr_gens_brain, m
                     child[points[i]:points[i+1]] = parent2[points[i]:points[i+1]]
             return child
 
-        results = np.zeros((gens, 3))
-
         param_shape = calculate_param_shapes(struct)
         pop = [create_random_weights(param_shape) for _ in range(pop_brain_sz)]
         pairings = [(struct, pair) for pair in pop]
@@ -211,6 +208,12 @@ def coevolution_v6(pop_struct_sz, pop_brain_sz, nr_gens_struct, nr_gens_brain, m
         sorted_idx = np.argsort(-fitness_scores)
         fitness_scores = [fitness_scores[i] for i in sorted_idx]
         pop = [pop[i] for i in sorted_idx]
+        pairings = [pairings[i] for i in sorted_idx]
+
+        best_fitness = fitness[0]
+        avg_fitness = np.mean(fitness)
+        print(
+            f"Generation 0/{gens}: - Best Fitness = {best_fitness:.4f}, Average Fitness = {avg_fitness:.4f}")
 
         for generation in range(gens):
             elite_individuals = pop[:elite_size]
@@ -236,17 +239,17 @@ def coevolution_v6(pop_struct_sz, pop_brain_sz, nr_gens_struct, nr_gens_brain, m
             sorted_idx = np.argsort(-fitness_scores)
             fitness_scores = [fitness_scores[i] for i in sorted_idx]
             pop = [new_pop[i] for i in sorted_idx]
+            pairings = [pairings[i] for i in sorted_idx]
             mean_fitness = np.mean(fitness_scores)
             print(
                 f'Generation {generation + 1}/{gens}: Best Fitness: {fitness_scores[0]:.4f}, Average Fitness: {mean_fitness:.4f}')
-            results[generation] = [generation + 1, fitness_scores[0], mean_fitness]
 
         best_weights = pop[0]
         best_fitness = fitness_scores[0]
 
-        return best_weights, best_fitness, results
+        return best_weights, best_fitness
 
-    results = np.zeros((nr_gens_struct, 3))
+    results = np.zeros((nr_gens_struct+1, 3))
 
     pop_struct = [create_random_robot() for _ in range(pop_struct_sz)]
     pairings = []
@@ -254,7 +257,7 @@ def coevolution_v6(pop_struct_sz, pop_brain_sz, nr_gens_struct, nr_gens_brain, m
 
     for i, struct in enumerate(pop_struct):
         print(f"\n\n Robot {str(i)}\n\n")
-        best_weights, best_fitness, _ = genetic_algorithm(
+        best_weights, best_fitness = genetic_algorithm(
             struct,
             nr_gens_brain,
             pop_brain_sz,
@@ -269,6 +272,14 @@ def coevolution_v6(pop_struct_sz, pop_brain_sz, nr_gens_struct, nr_gens_brain, m
     sorted_idx = np.argsort(-np.array(fitness))
     pop_struct = [pop_struct[i] for i in sorted_idx]
     pairings = [pairings[i] for i in sorted_idx]
+
+    print(fitness)
+    best_fitness = fitness[0]
+    avg_fitness = np.mean(fitness)
+    print(
+        f"Generation 0: - Best Fitness = {best_fitness}, Average Fitness = {avg_fitness}")
+
+    results[0] = [0, best_fitness, np.mean(fitness)]
 
     for generation in range(nr_gens_struct):
         # Elitism
@@ -287,7 +298,7 @@ def coevolution_v6(pop_struct_sz, pop_brain_sz, nr_gens_struct, nr_gens_brain, m
 
         for i, struct in enumerate(pop_struct[ELITISM_SIZE:]):
             print(f"\n\n Robot {str(i)}\n\n")
-            best_weights, best_fitness, _ = genetic_algorithm(
+            best_weights, best_fitness = genetic_algorithm(
                 struct,
                 nr_gens_brain,
                 pop_brain_sz,
@@ -307,11 +318,10 @@ def coevolution_v6(pop_struct_sz, pop_brain_sz, nr_gens_struct, nr_gens_brain, m
         print(fitness)
         best_fitness = fitness[0]
         avg_fitness = np.mean(fitness)
-        print(pairings)
         print(
             f"Generation {generation + 1}: - Best Fitness = {best_fitness}, Average Fitness = {avg_fitness}")
 
-        results[generation] = [generation+1, fitness[0], np.mean(fitness)]
+        results[generation+1] = [generation+1, fitness[0], np.mean(fitness)]
 
     best_robot = pairings[0][0]
     best_weights = pairings[0][1]
@@ -416,7 +426,7 @@ def coevolution_cma(pop_struct_sz, pop_brain_sz, nr_gens_struct, nr_gens_brain, 
         best_weights = unflatten_weights(best_solution, param_shape)
         return best_weights, best_fitness, results
 
-    results = np.zeros((nr_gens_struct, 3))
+    results = np.zeros((nr_gens_struct+1, 3))
 
     pop_struct = [create_random_robot() for _ in range(pop_struct_sz)]
     pairings = []
@@ -428,8 +438,16 @@ def coevolution_cma(pop_struct_sz, pop_brain_sz, nr_gens_struct, nr_gens_brain, 
         pairings.append((struct, best_weights))
         fitness.append(best_fitness)
     sorted_idx = np.argsort(-np.array(fitness))
+    fitness = [fitness[i] for i in sorted_idx]
     pop_struct = [pop_struct[i] for i in sorted_idx]
     pairings = [pairings[i] for i in sorted_idx]
+
+    best_fitness_struct = fitness[0]
+    avg_fitness_struct = np.mean(fitness)
+    print(
+        f"Generation 0: - Best Fitness = {best_fitness_struct}, Average Fitness = {avg_fitness_struct}")
+
+    results[0] = [0, fitness[0], np.mean(fitness)]
 
     for generation in range(nr_gens_struct):
         # Elitism
@@ -461,7 +479,7 @@ def coevolution_cma(pop_struct_sz, pop_brain_sz, nr_gens_struct, nr_gens_brain, 
         print(
             f"Generation {generation + 1}: - Best Fitness = {best_fitness_struct}, Average Fitness = {avg_fitness_struct}")
 
-        results[generation] = [generation+1, fitness[0], np.mean(fitness)]
+        results[generation+1] = [generation+1, fitness[0], np.mean(fitness)]
 
     best_robot = pairings[0][0]
     best_weights = pairings[0][1]
@@ -1169,11 +1187,6 @@ def run_coevolution(seed):
 
     print("Elapsed time: " + str(elapsed_time))
 
-    time_str = str(time.strftime("%Y-%m-%d_%Hh%Mm%Ss"))+"_S"+str(seed)+"_G"+str(NUM_GENERATIONS)
-    path = os.path.join("students", "results", "ga", time_str)
-
-    os.makedirs(path)
-
     results.to_csv(path+'\\fitness_history.csv', index=False)
 
     print("Best robot structure found:")
@@ -1183,7 +1196,7 @@ def run_coevolution(seed):
     json_file['best fitness'] = best_fitness
     print(best_fitness)
 
-    json_file['total_eval'] = NUM_GENERATIONS*10*100
+    json_file['total_eval'] = (pop_size_struct-2)*num_generations_struct*((pop_size_brain-2)*num_generations_brain+pop_size_brain) + pop_size_struct*((pop_size_brain-2)*num_generations_brain + pop_size_brain)
 
     with open(path+'\\data.json', 'w', encoding='utf-8') as f:
         json.dump(json_file, f, ensure_ascii=False, indent=4)
@@ -1209,11 +1222,11 @@ def run_coevolution_cma(seed):
     json_file = dict()
 
     # Parameters
-    pop_size_struct = 15
-    pop_size_brain = 11
-    num_generations_struct = 8
+    pop_size_struct = 12
+    pop_size_brain = 10
+    num_generations_struct = 5
     num_generations_brain = 15
-    mutation_rate_structure = 0.1
+    mutation_rate_structure = 0.15
     tournament_size = 5
 
     print('Starting CMA Coevolution...')
@@ -1249,7 +1262,7 @@ def run_coevolution_cma(seed):
     json_file['best fitness'] = best_fitness
     print(best_fitness)
 
-    json_file['total_eval'] = NUM_GENERATIONS*10*100
+    json_file['total_eval'] = (pop_size_struct-2)*num_generations_struct*((pop_size_brain-2)*num_generations_brain+pop_size_brain) + pop_size_struct*((pop_size_brain-2)*num_generations_brain + pop_size_brain)
 
     with open(path+'\\data.json', 'w', encoding='utf-8') as f:
         json.dump(json_file, f, ensure_ascii=False, indent=4)
