@@ -2,8 +2,6 @@ import json
 import scipy.stats as st
 import os
 import numpy as np
-from statsmodels.stats.multicomp import pairwise_tukeyhsd
-
 
 
 def load_data(path, ranking_method='best reward'):
@@ -143,45 +141,6 @@ def test_3_2_walker():
     print('Best CMA-ES (small sigma):', best_cma_small_sigma)
     print('Best Differential Evolution (best base):', best_de_best_base)
 
-    # Test Normality
-    normal_random = test_normal_sw(best_random)
-    normal_ga_less_mutation = test_normal_sw(best_ga_less_mutation)
-    normal_cma_big_sigma = test_normal_sw(best_cma_big_sigma)
-    normal_de_random_base = test_normal_sw(best_de_random_base)
-    normal_ga_more_mutation = test_normal_sw(best_ga_more_mutation)
-    normal_cma_small_sigma = test_normal_sw(best_cma_small_sigma)
-    normal_de_best_base = test_normal_sw(best_de_best_base)
-
-    normal = [
-        normal_random,
-        normal_ga_less_mutation,
-        normal_cma_big_sigma,
-        normal_de_random_base,
-        normal_ga_more_mutation,
-        normal_cma_small_sigma,
-        normal_de_best_base,
-    ]
-
-    print('Normality testing w\\Shapiro-Wilk')
-    print(f'Random Search: {normal_random}')
-    print(f'GA (less mutation): {normal_ga_less_mutation}')
-    print(f'CMA-ES (big sigma): {normal_cma_big_sigma}')
-    print(f'DE (random base): {normal_de_random_base}')
-    print(f'GA (more mutation): {normal_ga_more_mutation}')
-    print(f'CMA-ES (small sigma): {normal_cma_small_sigma}')
-    print(f'DE (best base): {normal_de_best_base}')
-
-    all_normal = True
-    for result in normal:
-        if result.pvalue < 0.05:
-            all_normal = False
-            break
-
-    if all_normal:
-        print('All data is normal')
-    else:
-        print('Not all data is normal')
-
     # Perform ANOVA
     anova_result = st.f_oneway(
         best_random,
@@ -194,59 +153,40 @@ def test_3_2_walker():
     )
     print(f'\nANOVA test: F={anova_result.statistic:.4f}, p={anova_result.pvalue:.8f}')
 
-    # Perform Tukey's HSD test if ANOVA is significant
+    # Perform T-Test for pairwise comparisons if ANOVA is significant
     if anova_result.pvalue < 0.05:
         print('ANOVA is significant, which means there is a difference between the groups.')
-        print('Performing Tukey\'s HSD test for pairwise comparisons...')
+        print('Performing pairwise T-Tests for comparisons...')
 
-        # Combine all data and labels
-        all_data = np.concatenate([
-            best_random,
-            best_ga_less_mutation,
-            best_cma_big_sigma,
-            best_de_random_base,
-            best_ga_more_mutation,
-            best_cma_small_sigma,
-            best_de_best_base
-        ])
-        labels = (
-            ['Random Search'] * len(best_random) +
-            ['GA (less mutation)'] * len(best_ga_less_mutation) +
-            ['CMA-ES (big sigma)'] * len(best_cma_big_sigma) +
-            ['DE (random base)'] * len(best_de_random_base) +
-            ['GA (more mutation)'] * len(best_ga_more_mutation) +
-            ['CMA-ES (small sigma)'] * len(best_cma_small_sigma) +
-            ['DE (best base)'] * len(best_de_best_base)
-        )
+        # Define all groups and their labels
+        groups = {
+            "Random Search": best_random,
+            "GA (less mutation)": best_ga_less_mutation,
+            "CMA-ES (big sigma)": best_cma_big_sigma,
+            "DE (random base)": best_de_random_base,
+            "GA (more mutation)": best_ga_more_mutation,
+            "CMA-ES (small sigma)": best_cma_small_sigma,
+            "DE (best base)": best_de_best_base
+        }
 
-        # Perform Tukey's HSD test
-        tukey_result = pairwise_tukeyhsd(all_data, labels, alpha=0.05)
-        print('\nTukey\'s HSD test for pairwise comparisons:')
-        print(tukey_result)
+        # Perform pairwise T-Tests
+        group_names = list(groups.keys())
+        for i in range(len(group_names)):
+            for j in range(i + 1, len(group_names)):
+                group1 = group_names[i]
+                group2 = group_names[j]
+                t_stat, p_value = st.ttest_ind(groups[group1], groups[group2])
+                print(f'{group1} vs {group2}: t={t_stat:.4f}, p={p_value:.8f}')
 
     # Print mean values to determine which is better
     print('\nMean Performance:')
-    print(f'Random Search: {np.mean(best_random)}')
-    print(f'GA (less mutation): {np.mean(best_ga_less_mutation)}')
-    print(f'CMA-ES (big sigma): {np.mean(best_cma_big_sigma)}')
-    print(f'DE (random base): {np.mean(best_de_random_base)}')
-    print(f'GA (more mutation): {np.mean(best_ga_more_mutation)}')
-    print(f'CMA-ES (small sigma): {np.mean(best_cma_small_sigma)}')
-    print(f'DE (best base): {np.mean(best_de_best_base)}')
+    for name, data in groups.items():
+        print(f'{name}: {np.mean(data):.4f}')
 
     # Find and print the best algorithm
-    means = [
-        ("Random Search", np.mean(best_random)),
-        ("GA (less mutation)", np.mean(best_ga_less_mutation)),
-        ("CMA-ES (big sigma)", np.mean(best_cma_big_sigma)),
-        ("DE (random base)", np.mean(best_de_random_base)),
-        ("GA (more mutation)", np.mean(best_ga_more_mutation)),
-        ("CMA-ES (small sigma)", np.mean(best_cma_small_sigma)),
-        ("DE (best base)", np.mean(best_de_best_base))
-    ]
+    means = [(name, np.mean(data)) for name, data in groups.items()]
     best_algo = max(means, key=lambda x: x[1])
     print(f'\nBest performing algorithm: {best_algo[0]} with mean fitness {best_algo[1]:.4f}')
-
 
 def main():
 
