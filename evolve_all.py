@@ -17,7 +17,7 @@ import json
 import pandas as pd
 
 # ---- PARAMETERS ----
-NUM_CORES = 9
+NUM_CORES = 11
 NUM_GENERATIONS = 50
 ELITISM_SIZE = 2
 STEPS = 500
@@ -442,7 +442,8 @@ def coevolution_cma(pop_struct_sz, pop_brain_sz, nr_gens_struct, nr_gens_brain, 
             child_structure = mutate_structure(child_structure, mutation_rate_structure)
             new_population_struct.append(child_structure)
         pop_struct = new_population_struct
-
+        
+        pairings = pairings[0:ELITISM_SIZE]
         fitness = fitness[0:ELITISM_SIZE]
 
         for i, struct in enumerate(pop_struct[ELITISM_SIZE:]):
@@ -1208,8 +1209,8 @@ def run_coevolution_cma(seed):
     json_file = dict()
 
     # Parameters
-    pop_size_struct = 10
-    pop_size_brain = 18
+    pop_size_struct = 15
+    pop_size_brain = 11
     num_generations_struct = 8
     num_generations_brain = 15
     mutation_rate_structure = 0.1
@@ -1238,11 +1239,6 @@ def run_coevolution_cma(seed):
     json_file['elapsed_time'] = elapsed_time
 
     print("Elapsed time: " + str(elapsed_time))
-
-    time_str = str(time.strftime("%Y-%m-%d_%Hh%Mm%Ss"))+"_S"+str(seed)+"_G"+str(NUM_GENERATIONS)
-    path = os.path.join("students", "results", "ga", time_str)
-
-    os.makedirs(path)
 
     results.to_csv(path+'\\fitness_history.csv', index=False)
 
@@ -1278,7 +1274,8 @@ def run_coevolution_cma(seed):
 def main():
     for seed in SEEDS:
         set_seed(seed)
-        run_coevolution(seed)
+        # run_coevolution(seed)
+        run_coevolution_cma(seed)
     return
 
 
