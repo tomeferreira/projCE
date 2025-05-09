@@ -382,10 +382,7 @@ def coevolution_cma(pop_struct_sz, pop_brain_sz, nr_gens_struct, nr_gens_brain, 
     def controller_cma(struct, gens=10):
         param_shape = calculate_param_shapes(struct)
         dim = sum(np.prod(shape) for shape in param_shape)  # Flattened dimension
-        optimizer = CMA(mean=np.zeros(dim), sigma=1.5, population_size=pop_brain_sz)
-
-        # To store generation, best fitness, and average fitness
-        results = np.zeros((gens, 3))
+        optimizer = CMA(mean=np.zeros(dim), sigma=2.5, population_size=pop_brain_sz)
 
         best_solution = None
         best_fitness = -np.inf  # Initialize with a very low fitness value
@@ -421,10 +418,9 @@ def coevolution_cma(pop_struct_sz, pop_brain_sz, nr_gens_struct, nr_gens_brain, 
             avg_fitness = np.mean(fitness_scores)
             print(
                 f"Generation {generation + 1}/{gens}: Best Fitness = {best_fitness:.4f}, Average Fitness = {avg_fitness:.4f}")
-            results[generation] = [generation + 1, best_fitness, avg_fitness]
 
         best_weights = unflatten_weights(best_solution, param_shape)
-        return best_weights, best_fitness, results
+        return best_weights, best_fitness
 
     results = np.zeros((nr_gens_struct+1, 3))
 
@@ -434,7 +430,7 @@ def coevolution_cma(pop_struct_sz, pop_brain_sz, nr_gens_struct, nr_gens_brain, 
 
     for i, struct in enumerate(pop_struct):
         print(f"\n\n Robot {str(i)}\n\n")
-        best_weights, best_fitness, results = controller_cma(struct, nr_gens_brain)
+        best_weights, best_fitness = controller_cma(struct, nr_gens_brain)
         pairings.append((struct, best_weights))
         fitness.append(best_fitness)
     sorted_idx = np.argsort(-np.array(fitness))
@@ -466,7 +462,7 @@ def coevolution_cma(pop_struct_sz, pop_brain_sz, nr_gens_struct, nr_gens_brain, 
 
         for i, struct in enumerate(pop_struct[ELITISM_SIZE:]):
             print(f"\n\n Robot {str(i)}\n\n")
-            best_weights, best_fitness, results = controller_cma(struct, nr_gens_brain)
+            best_weights, best_fitness = controller_cma(struct, nr_gens_brain)
             pairings.append((struct, best_weights))
             fitness.append(best_fitness)
         sorted_idx = np.argsort(-np.array(fitness))
@@ -1226,7 +1222,7 @@ def run_coevolution_cma(seed):
     pop_size_brain = 10
     num_generations_struct = 5
     num_generations_brain = 15
-    mutation_rate_structure = 0.15
+    mutation_rate_structure = 0.2
     tournament_size = 5
 
     print('Starting CMA Coevolution...')
