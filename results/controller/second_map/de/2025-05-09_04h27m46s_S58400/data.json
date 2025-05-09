@@ -1,0 +1,16 @@
+{
+    "algorithm": "differential_evolution",
+    "scenario": "DownStepper-v0",
+    "seed": 58400,
+    "population_size": 50,
+    "base_vector_type": "best",
+    "nr_diff_vectors": 2,
+    "scale_factor": "linear",
+    "scale_max": 1,
+    "scale_min": 0.5,
+    "generations": 250,
+    "steps": 500,
+    "elapsed_time": 3896.5418956279755,
+    "best fitness": 4.293332,
+    "total_eval": 12500
+}

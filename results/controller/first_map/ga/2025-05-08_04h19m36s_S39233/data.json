@@ -1,0 +1,17 @@
+{
+    "algorithm": "cma-es",
+    "generation": 250,
+    "scenario": "DownStepper-v0",
+    "seed": 39233,
+    "population_size": 50,
+    "mutation_strength": 0.02,
+    "mutation_rate": 0.05,
+    "k_points": 2,
+    "tournament_size": 5,
+    "elite_size": 2,
+    "generations": 250,
+    "steps": 500,
+    "elapsed_time": 4271.40784072876,
+    "best fitness": 3.395048,
+    "total_eval": 12500
+}
