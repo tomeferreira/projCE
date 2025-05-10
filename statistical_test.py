@@ -188,15 +188,13 @@ def test_3_2_downstepper():
                 t_stat, p_value = st.ttest_ind(groups[group1], groups[group2])
                 print(f'    {group1} vs {group2}: t={t_stat:.4f}, p={p_value:.8f}')
 
-    # Print mean values to determine which is better
+    # Print mean values
     print('\nMean Performance:')
     for name, data in groups.items():
         print(f'    {name}: {np.mean(data):.4f}')
 
-    # Find and print the best algorithm
-    means = [(name, np.mean(data)) for name, data in groups.items()]
-    best_algo = max(means, key=lambda x: x[1])
-    print(f'\nBest performing algorithm: {best_algo[0]} with mean fitness {best_algo[1]:.4f}')
+    # The t-tests did not show significant differences, so we can't conclude which algorithm is better based on the means alone
+
 
 def test_3_2_obstacle_traverser():
     best_cma = load_data('final_results/3_2/ObstacleTraverser/cma', ranking_method='best fitness')
@@ -225,6 +223,31 @@ def test_3_2_obstacle_traverser():
     best_algo = max(means, key=lambda x: x[1])
     print(f'\nBest performing algorithm: {best_algo[0]} with mean fitness {best_algo[1]:.4f}')
 
+def test_3_3_gapjumper():
+    best_cmaes_sigma3_5 = load_data('final_results/3_3/GapJumper/CMAES_Sigma3_5', ranking_method='best fitness')
+    best_cmaes_sigma2_5 = load_data('final_results/3_3/GapJumper/CMAES_Sigma2_5', ranking_method='best fitness')
+
+    # Print the loaded data
+    print('Best CMA-ES (sigma 3.5):', best_cmaes_sigma3_5)
+    print('Best CMA-ES (sigma 2.5):', best_cmaes_sigma2_5)
+
+    # Test Normality using Shapiro-Wilk
+    print('\nNormality testing w/Shapiro-Wilk')
+    print(f'    CMA-ES (sigma 3.5): {test_normal_sw(best_cmaes_sigma3_5)}')
+    print(f'    CMA-ES (sigma 2.5): {test_normal_sw(best_cmaes_sigma2_5)}')
+
+    # p is close to being smaller than 0.05, but the data is normal: use T-Test. No need for ANOVA, as we only have two groups
+
+    t_stat, p_value = st.ttest_ind(best_cmaes_sigma3_5, best_cmaes_sigma2_5)
+    print(f'\nT-Test: t={t_stat:.4f}, p={p_value:.8f}')
+
+    # Print mean values
+    print('\nMean Performance:')
+    print(f'    CMA-ES (sigma 3.5): {np.mean(best_cmaes_sigma3_5):.4f}')
+    print(f'    CMA-ES (sigma 2.5): {np.mean(best_cmaes_sigma2_5):.4f}')
+
+    # We cannot conclude which algorithm is better based on the means alone, as the T-Test did not show significant differences.
+    
 
 def main():
 
@@ -234,7 +257,9 @@ def main():
 	
     #test_3_2_downstepper()
 
-    test_3_2_obstacle_traverser()
+    # test_3_2_obstacle_traverser()
+
+    test_3_3_gapjumper()
 
     return
 
