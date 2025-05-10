@@ -1,0 +1,12 @@
+{
+    "algorithm": "cma-es",
+    "scenario": "ObstacleTraverser-v0",
+    "seed": 68167,
+    "population_size": 50,
+    "sigma": 1.3,
+    "generations": 250,
+    "steps": 500,
+    "elapsed_time": 3408.2682621479034,
+    "best fitness": 3.481674,
+    "total_eval": 12500
+}
