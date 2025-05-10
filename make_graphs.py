@@ -1,7 +1,9 @@
 import plotly.graph_objects as go
+import matplotlib.pyplot as plt
 import pandas as pd
 import os
 import numpy as np
+import glob
 
 '''
 Código do ChatGPT
@@ -148,10 +150,80 @@ def graph_5_runs(PATH,NUM_GENERATIONS,POP_SIZE,MUTATION_RATE,TOURNAMENT_SIZE,ELI
 
     return
 
-def main():
-    graph_5_runs('students\\results\\ga\\just_reward',100,50,0.05,5,2)
 
+def plot_fitness_evolution(algorithm_paths, save_path="graphs", history_column="Best Fitness"):
+    """
+    Plot the fitness evolution for multiple algorithms, averaging across multiple runs, using Matplotlib.
     
+    Args:
+        algorithm_paths (dict): A dictionary where keys are algorithm names and values are lists of file paths to fitness history CSVs.
+        save_path (str): The directory where the plot will be saved.
+        history_column (str): The column name to plot (e.g., "Best Fitness" or "Mean Fitness").
+    """
+    plt.figure(figsize=(12, 6))
+
+    for algorithm, paths in algorithm_paths.items():
+        fitness_data = []
+
+        # Load and process each file for the algorithm
+        for file in paths:
+            df = pd.read_csv(file)
+            fitness_data.append(df[history_column].values)
+
+        # Calculate the mean and standard deviation of fitness evolution across all files
+        fitness_df = pd.DataFrame(fitness_data)
+        mean_fitness = fitness_df.mean(axis=0)
+        std_fitness = fitness_df.std(axis=0)
+
+        # Plot the mean fitness evolution line
+        plt.plot(range(1, len(mean_fitness) + 1), mean_fitness, label=algorithm)
+
+        # Add the "shadow" (mean ± std)
+        plt.fill_between(
+            range(1, len(mean_fitness) + 1),
+            mean_fitness - std_fitness,
+            mean_fitness + std_fitness,
+            alpha=0.2  # Transparency for the shadow
+        )
+
+    # Customize the plot
+    plt.title(f'{history_column} Evolution Across Algorithms')
+    plt.xlabel('Iteration')
+    plt.ylabel(history_column)
+    plt.legend(loc='lower right', fontsize='small')
+    plt.grid(True)
+
+    # Save the figure
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
+    file_name = f"{history_column.replace(' ', '_').lower()}_evolution.png"
+    plt.savefig(f"{save_path}/{file_name}", dpi=300)
+
+    # Show the plot
+    plt.show()
+
+
+def main():
+    # graph_5_runs('students\\results\\ga\\just_reward',100,50,0.05,5,2)
+
+    downstepper_3_2 = {
+        "CMA-ES (Sigma = 1.3)": glob.glob("final_results/3_2/DownStepper/cma_big_sigma/*/fitness_history.csv"),
+        "CMA-ES (Sigma = 0.5)": glob.glob("final_results/3_2/DownStepper/cma_small_sigma/*/fitness_history.csv"),
+        "DE (base aleatória)": glob.glob("final_results/3_2/DownStepper/de_random_base/*/fitness_history.csv"),
+        "DE (melhor base)": glob.glob("final_results/3_2/DownStepper/de_best_base/*/fitness_history.csv"),
+        "GA (menos mutação)": glob.glob("final_results/3_2/DownStepper/ga_less_mutation/*/fitness_history.csv"),
+        "GA (mais mutação)": glob.glob("final_results/3_2/DownStepper/ga_more_mutation/*/fitness_history.csv"),
+        "Random Search": glob.glob("final_results/3_2/DownStepper/random/*/fitness_history.csv"),
+    }
+
+    obstacle_traverser_3_2 = {
+        "CMA-ES (Sigma = 1.3)": glob.glob("final_results/3_2/ObstacleTraverser/cma/*/fitness_history.csv"),
+        "DE (melhor base)": glob.glob("final_results/3_2/ObstacleTraverser/de/*/fitness_history.csv"),
+    }
+
+    # Plot the fitness evolution
+    plot_fitness_evolution(obstacle_traverser_3_2, "graphs/3_2/ObstacleTraverser", "Best Fitness")
+
     return
 
 

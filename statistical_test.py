@@ -122,15 +122,15 @@ def test_3_1_Walker_different_controller():
 	return
 
 
-def test_3_2_walker():
+def test_3_2_downstepper():
     # Load data for each algorithm
-    best_random = load_data('results/controller/first_map/random', ranking_method='best fitness')
-    best_ga_less_mutation = load_data('results/controller/first_map/ga', ranking_method='best fitness')
-    best_cma_big_sigma = load_data('results/controller/first_map/cma', ranking_method='best fitness')
-    best_de_random_base = load_data('results/controller/first_map/de', ranking_method='best fitness')
-    best_ga_more_mutation = load_data('results/controller/second_map/ga', ranking_method='best fitness')
-    best_cma_small_sigma = load_data('results/controller/second_map/cma', ranking_method='best fitness')
-    best_de_best_base = load_data('results/controller/second_map/de', ranking_method='best fitness')
+    best_random = load_data('final_results/3_2/DownStepper/random', ranking_method='best fitness')
+    best_ga_less_mutation = load_data('final_results/3_2/DownStepper/ga_less_mutation', ranking_method='best fitness')
+    best_cma_big_sigma = load_data('final_results/3_2/DownStepper/cma_big_sigma', ranking_method='best fitness')
+    best_de_random_base = load_data('final_results/3_2/DownStepper/de_random_base', ranking_method='best fitness')
+    best_ga_more_mutation = load_data('final_results/3_2/DownStepper/ga_more_mutation', ranking_method='best fitness')
+    best_cma_small_sigma = load_data('final_results/3_2/DownStepper/cma_small_sigma', ranking_method='best fitness')
+    best_de_best_base = load_data('final_results/3_2/DownStepper/de_best_base', ranking_method='best fitness')
 
     # Print the loaded data
     print('Best Random Search:', best_random)
@@ -140,6 +140,16 @@ def test_3_2_walker():
     print('Best Genetic Algorithm (more mutation):', best_ga_more_mutation)
     print('Best CMA-ES (small sigma):', best_cma_small_sigma)
     print('Best Differential Evolution (best base):', best_de_best_base)
+
+    # Test Normality using Shapiro-Wilk
+    print('\nNormality testing w/Shapiro-Wilk')
+    print(f'    Random: {test_normal_sw(best_random)}')
+    print(f'    GA (less mutation): {test_normal_sw(best_ga_less_mutation)}')
+    print(f'    CMA-ES (big sigma): {test_normal_sw(best_cma_big_sigma)}')
+    print(f'    DE (random base): {test_normal_sw(best_de_random_base)}')
+    print(f'    GA (more mutation): {test_normal_sw(best_ga_more_mutation)}')
+    print(f'    CMA-ES (small sigma): {test_normal_sw(best_cma_small_sigma)}')
+    print(f'    DE (best base): {test_normal_sw(best_de_best_base)}')
 
     # Perform ANOVA
     anova_result = st.f_oneway(
@@ -156,7 +166,7 @@ def test_3_2_walker():
     # Perform T-Test for pairwise comparisons if ANOVA is significant
     if anova_result.pvalue < 0.05:
         print('ANOVA is significant, which means there is a difference between the groups.')
-        print('Performing pairwise T-Tests for comparisons...')
+        print('Performing pairwise T-Tests for comparisons...\n')
 
         # Define all groups and their labels
         groups = {
@@ -176,27 +186,82 @@ def test_3_2_walker():
                 group1 = group_names[i]
                 group2 = group_names[j]
                 t_stat, p_value = st.ttest_ind(groups[group1], groups[group2])
-                print(f'{group1} vs {group2}: t={t_stat:.4f}, p={p_value:.8f}')
+                print(f'    {group1} vs {group2}: t={t_stat:.4f}, p={p_value:.8f}')
+
+    # Print mean values
+    print('\nMean Performance:')
+    for name, data in groups.items():
+        print(f'    {name}: {np.mean(data):.4f}')
+
+    # The t-tests did not show significant differences, so we can't conclude which algorithm is better based on the means alone
+
+
+def test_3_2_obstacle_traverser():
+    best_cma = load_data('final_results/3_2/ObstacleTraverser/cma', ranking_method='best fitness')
+    best_de = load_data('final_results/3_2/ObstacleTraverser/de', ranking_method='best fitness')
+
+    # Print the loaded data
+    print('Best CMA-ES:', best_cma)
+    print('Best Differential Evolution:', best_de)
+    
+    # Test Normality using Shapiro-Wilk
+    print('\nNormality testing w/Shapiro-Wilk')
+    print(f'    CMA-ES: {test_normal_sw(best_cma)}')
+    print(f'    DE: {test_normal_sw(best_de)}')
+
+    # The data is normal: use T-Test. No need for ANOVA, as we only have two groups
+    t_stat, p_value = st.ttest_ind(best_cma, best_de)
+    print(f'\nT-Test: t={t_stat:.4f}, p={p_value:.8f}')
 
     # Print mean values to determine which is better
     print('\nMean Performance:')
-    for name, data in groups.items():
-        print(f'{name}: {np.mean(data):.4f}')
+    print(f'    CMA-ES: {np.mean(best_cma):.4f}')
+    print(f'    DE: {np.mean(best_de):.4f}')
 
     # Find and print the best algorithm
-    means = [(name, np.mean(data)) for name, data in groups.items()]
+    means = [('CMA-ES', np.mean(best_cma)), ('DE', np.mean(best_de))]
     best_algo = max(means, key=lambda x: x[1])
     print(f'\nBest performing algorithm: {best_algo[0]} with mean fitness {best_algo[1]:.4f}')
 
+def test_3_3_gapjumper():
+    best_cmaes_sigma3_5 = load_data('final_results/3_3/GapJumper/CMAES_Sigma3_5', ranking_method='best fitness')
+    best_cmaes_sigma2_5 = load_data('final_results/3_3/GapJumper/CMAES_Sigma2_5', ranking_method='best fitness')
+
+    # Print the loaded data
+    print('Best CMA-ES (sigma 3.5):', best_cmaes_sigma3_5)
+    print('Best CMA-ES (sigma 2.5):', best_cmaes_sigma2_5)
+
+    # Test Normality using Shapiro-Wilk
+    print('\nNormality testing w/Shapiro-Wilk')
+    print(f'    CMA-ES (sigma 3.5): {test_normal_sw(best_cmaes_sigma3_5)}')
+    print(f'    CMA-ES (sigma 2.5): {test_normal_sw(best_cmaes_sigma2_5)}')
+
+    # p is close to being smaller than 0.05, but the data is normal: use T-Test. No need for ANOVA, as we only have two groups
+
+    t_stat, p_value = st.ttest_ind(best_cmaes_sigma3_5, best_cmaes_sigma2_5)
+    print(f'\nT-Test: t={t_stat:.4f}, p={p_value:.8f}')
+
+    # Print mean values
+    print('\nMean Performance:')
+    print(f'    CMA-ES (sigma 3.5): {np.mean(best_cmaes_sigma3_5):.4f}')
+    print(f'    CMA-ES (sigma 2.5): {np.mean(best_cmaes_sigma2_5):.4f}')
+
+    # We cannot conclude which algorithm is better based on the means alone, as the T-Test did not show significant differences.
+    
+
 def main():
 
-	#test_3_1_Walker_same_controller()
+    #test_3_1_Walker_same_controller()
 
-	#test_3_1_Walker_different_controller()
+    #test_3_1_Walker_different_controller()
 	
-	test_3_2_walker()
+    #test_3_2_downstepper()
 
-	return
+    # test_3_2_obstacle_traverser()
+
+    test_3_3_gapjumper()
+
+    return
 
 if __name__ == '__main__':
 	main()
