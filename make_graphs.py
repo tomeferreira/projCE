@@ -226,6 +226,19 @@ def main():
         "CMA-ES (Sigma = 3.5)": glob.glob("final_results/3_3/GapJumper/CMAES_Sigma3_5/*/fitness_history.csv"),
     }
 
+    
+    fitness_reward_3_1 = {
+        "Reward": glob.glob("students/final_results/3_1/250_GA/uniform_crossover_5_mutation/*/fitness_history.csv"),
+        "Fitness": glob.glob("students/final_results/3_1/my_fitness/*/fitness_history.csv"),
+    }
+
+    general_3_1 = {
+        "GA (TM=0.05 \\& UC)": glob.glob("students/final_results/3_1/250_GA/uniform_crossover_5_mutation/*/fitness_history.csv"),
+        "GA (TM=0.1 \\& UC)": glob.glob("students/final_results/3_1/250_GA/uniform_crossover_10_mutation//*/fitness_history.csv"),
+        "GA (TM=0.05 \\& 3pC)": glob.glob("students/final_results/3_1/250_GA/3point_crossover_5_mutation/*/fitness_history.csv"),
+        "GA (TM=0.1 \\& 3pC)": glob.glob("students/final_results/3_1/250_GA/3point_crossover_10_mutation/*/fitness_history.csv"),
+    }
+
     # Plot the fitness evolution
     plot_fitness_evolution(obstacle_traverser_3_2, "graphs/3_2/ObstacleTraverser", "Best Reward")
 
