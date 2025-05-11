@@ -21,6 +21,24 @@ def test_normal_sw(data):
     norm_data = (data - np.mean(data))/(np.std(data)/np.sqrt(len(data)))
     return st.shapiro(norm_data)
 
+def one_way_ind_anova(data):
+    """
+    parametric
+    many samples
+    independent
+    """
+    F,pval = st.f_oneway(*data)
+    return (F,pval)
+
+def t_test_ind(data1,data2, eq_var=True):
+    """
+    parametric
+    two samples
+    independent
+    """
+    t,pval = st.ttest_ind(data1,data2, equal_var=eq_var)
+    return (t,pval)
+
 def kruskal_wallis(data):
     """
     non parametric
@@ -105,6 +123,62 @@ def test_3_1_Walker_different_controller():
 	print(f'Sinusoidal Wave: {test_normal_sw(best_sinusoidal_wave)}')
 
 	# Hypothesis testing
+	print(f'ANOVA test: {one_way_ind_anova((best_alternating_gait,best_hopping_motion,best_sinusoidal_wave))}')
+
+	print(f'Alternating Gait vs Hopping Motion: {t_test_ind(best_alternating_gait,best_hopping_motion)}')
+	print(f'Alternating Gait vs Sinusoidal Wave: {t_test_ind(best_alternating_gait, best_sinusoidal_wave)}')
+
+	print(f'Hopping Motion vs Sinusoidal Wave: {t_test_ind(best_hopping_motion, best_sinusoidal_wave)}')
+
+	# Which is better?
+
+	print('Of the similar ones, which one is better?')
+	print(f'Alternating Gait: {np.mean(best_alternating_gait)}')
+	print(f'Hopping Motion: {np.mean(best_hopping_motion)}')
+	print(f'Sinusoidal Wave: {np.mean(best_sinusoidal_wave)}')
+
+	return
+
+def test_3_1_Walker_different_fitness():
+	# Load data
+	reward = load_data('students\\final_results\\3_1\\250_GA\\uniform_crossover_5_mutation')
+	fitness = load_data('students\\final_results\\3_1\\my_fitness')
+
+	print(reward)
+	print(fitness)
+
+	# Test Normality
+	print('Normality testing w\\Shapiro-Wilk')
+	print(f'Reward: {test_normal_sw(reward)}')
+	print(f'Fitness: {test_normal_sw(fitness)}')
+
+	print(f'Reward vs Fitness: {t_test_ind(reward,fitness)}')
+
+	# Which is better?
+
+	print('Of the similar ones, which one is better?')
+	print(f'Reward: {np.mean(reward)}')
+	print(f'Fitness: {np.mean(fitness)}')
+
+	return
+
+def test_3_1_BridgeWalker_different_controller():
+	# Load data
+	best_alternating_gait = load_data('students\\final_results\\3_1\\BridgeWalker_alternating_gait')
+	best_hopping_motion = load_data('students\\final_results\\3_1\\BridgeWalker_hopping_motion')
+	best_sinusoidal_wave = load_data('students\\final_results\\3_1\\BridgeWalker_sinusoidal_waves')
+
+	print(best_alternating_gait)
+	print(best_hopping_motion)
+	print(best_sinusoidal_wave)
+
+	# Test Normality
+	print('Normality testing w\\Shapiro-Wilk')
+	print(f'Alternating Gait: {test_normal_sw(best_alternating_gait)}')
+	print(f'Hopping Motion: {test_normal_sw(best_hopping_motion)}')
+	print(f'Sinusoidal Wave: {test_normal_sw(best_sinusoidal_wave)}')
+
+	# Hypothesis testing
 	print(f'Kruskal Wallis test: {kruskal_wallis((best_alternating_gait,best_hopping_motion,best_sinusoidal_wave))}')
 
 	print(f'Alternating Gait vs Hopping Motion: {mann_whitney(best_alternating_gait,best_hopping_motion)}')
@@ -120,7 +194,6 @@ def test_3_1_Walker_different_controller():
 	print(f'Sinusoidal Wave: {np.mean(best_sinusoidal_wave)}')
 
 	return
-
 
 def test_3_2_downstepper():
     # Load data for each algorithm
@@ -247,21 +320,49 @@ def test_3_3_gapjumper():
     print(f'    CMA-ES (sigma 2.5): {np.mean(best_cmaes_sigma2_5):.4f}')
 
     # We cannot conclude which algorithm is better based on the means alone, as the T-Test did not show significant differences.
-    
+
+def test_3_3_cavecrawler():
+    best_cmaes_sigma3_5 = load_data('students/final_results/3_3/CaveCrawler/CMAES_Sigma3_5', ranking_method='best fitness')
+    best_cmaes_sigma2_5 = load_data('students\\final_results\\3_3\\CaveCrawler_v0', ranking_method='best fitness')
+
+    # Print the loaded data
+    print('Best CMA-ES (sigma 3.5):', best_cmaes_sigma3_5)
+    print('Best CMA-ES (sigma 2.5):', best_cmaes_sigma2_5)
+
+    # Test Normality using Shapiro-Wilk
+    print('\nNormality testing w/Shapiro-Wilk')
+    print(f'    CMA-ES (sigma 3.5): {test_normal_sw(best_cmaes_sigma3_5)}')
+    print(f'    CMA-ES (sigma 2.5): {test_normal_sw(best_cmaes_sigma2_5)}')
+
+    # p is close to being smaller than 0.05, but the data is normal: use T-Test. No need for ANOVA, as we only have two groups
+
+    t_stat, p_value = st.ttest_ind(best_cmaes_sigma3_5, best_cmaes_sigma2_5)
+    print(f'\nT-Test: t={t_stat:.4f}, p={p_value:.8f}')
+
+    # Print mean values
+    print('\nMean Performance:')
+    print(f'    CMA-ES (sigma 3.5): {np.mean(best_cmaes_sigma3_5):.4f}')
+    print(f'    CMA-ES (sigma 2.5): {np.mean(best_cmaes_sigma2_5):.4f}')
 
 def main():
 
-    #test_3_1_Walker_same_controller()
+	# test_3_1_Walker_same_controller()
 
-    #test_3_1_Walker_different_controller()
-	
-    #test_3_2_downstepper()
+	# test_3_1_Walker_different_controller()
+    
+	# test_3_1_Walker_different_fitness()
+
+	# test_3_1_BridgeWalker_different_controller()
+
+	# test_3_2_downstepper()
 
     # test_3_2_obstacle_traverser()
 
-    test_3_3_gapjumper()
+	# test_3_3_gapjumper()
+      
+	test_3_3_cavecrawler()
 
-    return
+	return
 
 if __name__ == '__main__':
 	main()
