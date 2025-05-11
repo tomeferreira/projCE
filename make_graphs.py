@@ -151,14 +151,14 @@ def graph_5_runs(PATH,NUM_GENERATIONS,POP_SIZE,MUTATION_RATE,TOURNAMENT_SIZE,ELI
     return
 
 
-def plot_fitness_evolution(algorithm_paths, save_path="graphs", history_column="Best Fitness"):
+def plot_fitness_evolution(algorithm_paths, save_path="graphs", history_column="Best Reward"):
     """
     Plot the fitness evolution for multiple algorithms, averaging across multiple runs, using Matplotlib.
     
     Args:
         algorithm_paths (dict): A dictionary where keys are algorithm names and values are lists of file paths to fitness history CSVs.
         save_path (str): The directory where the plot will be saved.
-        history_column (str): The column name to plot (e.g., "Best Fitness" or "Mean Fitness").
+        history_column (str): The column name to plot (e.g., "Best Reward" or "Mean Reward").
     """
     plt.figure(figsize=(12, 6))
 
@@ -227,7 +227,7 @@ def main():
     }
 
     # Plot the fitness evolution
-    plot_fitness_evolution(obstacle_traverser_3_2, "graphs/3_2/ObstacleTraverser", "Best Fitness")
+    plot_fitness_evolution(obstacle_traverser_3_2, "graphs/3_2/ObstacleTraverser", "Best Reward")
 
     return
 

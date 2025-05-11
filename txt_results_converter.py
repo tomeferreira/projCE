@@ -114,8 +114,8 @@ def extract_results_to_json_and_csv(txt_file_path, output_dir=None):
     df = pd.DataFrame([
         {
             'Iteration': entry['generation'],
-            'Best Fitness': entry['best_fitness'],
-            'Mean Fitness': entry['avg_fitness'],
+            'Best Reward': entry['best_fitness'],
+            'Mean Reward': entry['avg_fitness'],
         }
         for entry in fitness_data
     ])
@@ -138,7 +138,7 @@ def extract_results_to_json_and_csv(txt_file_path, output_dir=None):
 if __name__ == "__main__":
     # To process all results.txt files
 
-    for root, dirs, files in os.walk("results/controller"):
+    for root, dirs, files in os.walk("final_results/3_2"):
         for file in files:
             if file == "results.txt":
                 txt_file_path = os.path.join(root, file)
