@@ -187,16 +187,16 @@ def plot_fitness_evolution(algorithm_paths, save_path="graphs", history_column="
         )
 
     # Customize the plot
-    plt.title(f'{history_column} Evolution Across Algorithms')
+    plt.title(f'Best Reward Evolution Across Algorithms')
     plt.xlabel('Iteration')
-    plt.ylabel(history_column)
+    plt.ylabel('Best Reward')
     plt.legend(loc='lower right', fontsize='small')
     plt.grid(True)
 
     # Save the figure
     if not os.path.exists(save_path):
         os.makedirs(save_path)
-    file_name = f"{history_column.replace(' ', '_').lower()}_evolution.png"
+    file_name = f"best_reward_evolution.png"
     plt.savefig(f"{save_path}/{file_name}", dpi=300)
 
     # Show the plot
@@ -219,6 +219,11 @@ def main():
     obstacle_traverser_3_2 = {
         "CMA-ES (Sigma = 1.3)": glob.glob("final_results/3_2/ObstacleTraverser/cma/*/fitness_history.csv"),
         "DE (melhor base)": glob.glob("final_results/3_2/ObstacleTraverser/de/*/fitness_history.csv"),
+    }
+
+    gapjumper_3_3 = {
+        "CMA-ES (Sigma = 2.5)": glob.glob("final_results/3_3/GapJumper/CMAES_Sigma2_5/*/fitness_history.csv"),
+        "CMA-ES (Sigma = 3.5)": glob.glob("final_results/3_3/GapJumper/CMAES_Sigma3_5/*/fitness_history.csv"),
     }
 
     # Plot the fitness evolution
