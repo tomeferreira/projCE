@@ -78,19 +78,10 @@ def evaluate_fitness(robot_structure, view=False):
                 env.reset()
                 break
         
-        # x_speeds = np.sort(x_speeds)
-        # # Nunca vi speed >100, logo divido por 100 para "Normalizar"
-        # fitness += np.mean(x_speeds[0:40])/100
-        # x_speeds = x_speeds[::-1]
-        # fitness += np.mean(x_speeds[0:40])/100
-
         mean_speed = np.mean(x_speeds)
         fitness+=mean_speed/100
 
-        # print(f'Speed fitness: {fitness}')
-
         orientation_variance = np.abs(circular_variance(orientations))
-        # print(f'Orientation fitness: {orientation_variance*10}')
         fitness-=orientation_variance*10
 
         if end_pos==None:
@@ -99,14 +90,7 @@ def evaluate_fitness(robot_structure, view=False):
         if end_pos<start_pos:
             fitness-=100
         else:
-            # print(f'Distancia fitness: {(end_pos-start_pos)/100}')
             fitness+=(end_pos-start_pos)/100
-
-        # if np.count_nonzero(robot_structure[4])==5:
-        #     fitness-=10
-
-        # print(f'Multiplier: {np.count_nonzero(robot_structure)/25}')
-        # fitness=fitness*(1-(np.count_nonzero(robot_structure)/25)*0.25)
 
         viewer.close()
         env.close()
@@ -272,7 +256,6 @@ def genetic_algorithm():
 
         i = 1
         while not is_connected(child_flat.reshape((5,5))):
-            #print("Wasn't Connected Crossover")
             if i>5:
                 child_flat = create_random_robot()
                 break
@@ -302,7 +285,6 @@ def genetic_algorithm():
 
         i = 1
         while not is_connected(child_flat.reshape((5,5))):
-            #print("Wasn't Connected Crossover")
             if i>5:
                 child_flat = create_random_robot()
                 break
@@ -321,8 +303,6 @@ def genetic_algorithm():
         return child
 
     def tournament_selection(population, k=5):
-        # TODO YOUR CODE HERE
-        # Note: use sorted(<...>, key=fitness) to sort by value of the fitness function call
         indices = np.random.choice(len(population),k,replace=False)
         ind = sorted(indices)[:2]
         return population[ind[0]],population[ind[1]]

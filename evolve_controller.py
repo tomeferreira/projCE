@@ -260,10 +260,6 @@ def differential_evolution(
         """
         Generate a random scale factor between 0.5 and 1.0.
         """
-        # ? In the slides, it says that the scale factor for a random scale is between 0.5 and 1.0
-        # ? but it can be between scale_min and scale_max
-        # ? Sources say its mostly used between 0.5 and 1.0, but other values could be used
-        # ? what to do
         return np.random.uniform(0.5, 1.0)
 
     def linear_scale(current_gen):
@@ -650,7 +646,7 @@ def run_differential_evolution(seed):
 def main():
     for seed in SEEDS:
         set_seed(seed)
-        # run_random_search(seed)
+        run_random_search(seed)
         run_genetic_algorithm(seed)
         run_cma_es(seed)
         run_differential_evolution(seed)
